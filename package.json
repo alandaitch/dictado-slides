@@ -1,0 +1,17 @@
+{
+  "name": "dictado-slides",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node src/server.js"
+  },
+  "dependencies": {
+    "@ai-sdk/openai": "^3.0.63",
+    "ai": "^6.0.176",
+    "express": "^5.2.1",
+    "ws": "^8.20.0",
+    "zod": "^4.4.3"
+  }
+}

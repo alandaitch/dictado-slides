@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dictado → Slides</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <span class="dot"></span>
+        <span>dictado · slides</span>
+      </div>
+      <div class="status" id="status">
+        <span class="status-text" id="statusText">cargando modelo…</span>
+      </div>
+      <div class="controls">
+        <button id="startBtn" class="btn btn-primary" disabled>empezar</button>
+        <label class="btn btn-ghost" for="audioInput" id="uploadLabel" style="cursor:pointer">audio…</label>
+        <input type="file" id="audioInput" accept="audio/*,video/*" style="display:none" />
+        <button id="resetBtn" class="btn btn-ghost">reset</button>
+      </div>
+    </header>
+
+    <main class="stage" id="stage">
+      <section class="slide-frame" id="slideFrame">
+        <div class="slide empty" id="emptySlide">
+          <h1>Apretá <em>empezar</em> y hablá.</h1>
+          <p class="hint">cada vez que hagas una pausa, el modelo decide si extiende la slide o crea una nueva.</p>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div class="strip" id="strip"></div>
+      <div class="transcript" id="transcript">
+        <span class="transcript-label">último:</span>
+        <span class="transcript-text" id="transcriptText">—</span>
+      </div>
+    </footer>
+
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

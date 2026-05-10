@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "dictado-slides",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "start"],
+      "port": 3211,
+      "cwd": "/Users/alandaitch/mortgage-csv-upload/nada/dictado-slides"
+    }
+  ]
+}
