@@ -60,12 +60,15 @@ async function processTranscript(wss, transcript) {
   }
   state.isProcessing = true;
   broadcast(wss, { type: "agent:thinking", on: true });
+  console.log(`[transcript] ${transcript}`);
   try {
+    const t0 = Date.now();
     const { calls } = await runTurn({
       transcript,
       currentSlide: currentSlide(),
       history: state.history,
     });
+    console.log(`[agent] ${Date.now() - t0}ms — ${calls.map((c) => c.name).join(",") || "no-calls"}`);
     for (const call of calls) {
       const event = applyToolCall(call);
       if (event) broadcast(wss, event);

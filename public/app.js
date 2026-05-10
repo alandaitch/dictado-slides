@@ -104,20 +104,29 @@ function sendTranscript(text) {
 }
 
 async function loadTranscriber() {
-  setStatus("cargando whisper…");
+  setStatus("cargando whisper-large-v3-turbo…");
   const { pipeline, env } = await import("https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.5/+esm");
   env.allowLocalModels = false;
-  const device = navigator.gpu ? "webgpu" : "wasm";
-  setStatus(`cargando whisper (${device})…`);
-  transcriber = await pipeline("automatic-speech-recognition", "onnx-community/whisper-base", {
-    device,
-    dtype: device === "webgpu" ? "fp32" : "q8",
-    progress_callback: (p) => {
-      if (p.status === "progress" && typeof p.progress === "number") {
-        setStatus(`bajando ${p.file || "modelo"} ${Math.round(p.progress)}%`);
-      }
+  const hasWebGPU = !!navigator.gpu;
+  const device = hasWebGPU ? "webgpu" : "wasm";
+  setStatus(`cargando whisper-large-v3-turbo (${device}, primera vez ~200MB)…`);
+  transcriber = await pipeline(
+    "automatic-speech-recognition",
+    "onnx-community/whisper-large-v3-turbo",
+    {
+      device,
+      // Encoder en fp16 mantiene calidad acústica; decoder cuantizado q4 baja peso y acelera.
+      // En WASM (sin WebGPU) cae a q8 para no morir.
+      dtype: hasWebGPU
+        ? { encoder_model: "fp16", decoder_model_merged: "q4" }
+        : { encoder_model: "q8", decoder_model_merged: "q4" },
+      progress_callback: (p) => {
+        if (p.status === "progress" && typeof p.progress === "number") {
+          setStatus(`bajando ${p.file || "modelo"} ${Math.round(p.progress)}%`);
+        }
+      },
     },
-  });
+  );
   setStatus("listo", "");
 }
 
@@ -125,22 +134,24 @@ async function loadTranscriber() {
 // no dependency conflicts with transformers.js. Tradeoff: less accurate than
 // Silero in noisy rooms, but rock-solid in clean recording environments.
 class EnergyVoiceDetector {
-  constructor({ onSpeechStart, onSpeechEnd, onMisfire }) {
+  constructor({ onSpeechStart, onChunk, onMisfire }) {
     this.onSpeechStart = onSpeechStart;
-    this.onSpeechEnd = onSpeechEnd;
+    this.onChunk = onChunk;       // fires on flush (silence OR forced periodic)
     this.onMisfire = onMisfire;
     this.threshold = 0.012;       // RMS threshold for "voice"
-    this.silenceMs = 700;         // ms of silence to finalize a turn
+    this.silenceMs = 600;         // ms of silence to finalize on natural break
     this.minSpeechMs = 350;       // min duration to count as a real speech turn
+    this.maxChunkMs = 6000;       // force flush after this much continuous speech (real-time feel)
+    this.overlapMs = 250;         // carry over the tail of a mid-flush into the next chunk
     this.audioCtx = null;
     this.node = null;
     this.stream = null;
     this.source = null;
-    this.buffer = [];             // Float32Array chunks captured during speech
-    this.bufferSeconds = 0;
+    this.buffer = [];             // Float32Array chunks captured during current chunk
     this.speaking = false;
     this.lastVoiceTs = 0;
     this.speechStartTs = 0;
+    this.chunkStartTs = 0;
     this.running = false;
     this.sampleRate = 16000;
   }
@@ -179,7 +190,6 @@ class EnergyVoiceDetector {
     this.source = null;
     this.stream = null;
     this.buffer = [];
-    this.bufferSeconds = 0;
     this.speaking = false;
   }
 
@@ -190,29 +200,38 @@ class EnergyVoiceDetector {
 
     if (this.speaking) {
       this.buffer.push(samples);
-      this.bufferSeconds += samples.length / this.sampleRate;
-      if (isVoice) {
-        this.lastVoiceTs = now;
-      } else if (now - this.lastVoiceTs > this.silenceMs) {
-        // Finalize this turn.
+      if (isVoice) this.lastVoiceTs = now;
+
+      const silenceLong = !isVoice && now - this.lastVoiceTs > this.silenceMs;
+      const chunkTooLong = now - this.chunkStartTs > this.maxChunkMs;
+
+      if (silenceLong || chunkTooLong) {
         const totalMs = now - this.speechStartTs;
         const chunks = this.buffer;
-        this.buffer = [];
-        this.bufferSeconds = 0;
-        this.speaking = false;
+        const merged = this._merge(chunks);
+        if (silenceLong) {
+          this.speaking = false; // wait for next speech start
+          this.buffer = [];
+        } else {
+          // Mid-flush: keep speaking, carry the tail of the chunk into the next
+          // buffer so Whisper doesn't see a mid-word cut.
+          const overlapSamples = Math.floor((this.overlapMs / 1000) * this.sampleRate);
+          const tail = merged.length > overlapSamples ? merged.slice(merged.length - overlapSamples) : merged.slice();
+          this.buffer = [tail];
+          this.chunkStartTs = now;
+        }
         if (totalMs < this.minSpeechMs) {
           this.onMisfire?.();
         } else {
-          const merged = this._merge(chunks);
-          this.onSpeechEnd?.(merged);
+          this.onChunk?.(merged, { final: silenceLong });
         }
       }
     } else if (isVoice) {
       this.speaking = true;
       this.speechStartTs = now;
+      this.chunkStartTs = now;
       this.lastVoiceTs = now;
       this.buffer = [samples];
-      this.bufferSeconds = samples.length / this.sampleRate;
       this.onSpeechStart?.();
     }
   }
@@ -230,29 +249,76 @@ class EnergyVoiceDetector {
   }
 }
 
+// Serialize transcriber calls — transformers.js pipelines aren't concurrent-safe
+// and overlapping calls would queue at the WebGPU level anyway.
+let transcribeChain = Promise.resolve();
+
+function chunkEnergyDbfs(samples) {
+  if (!samples?.length) return -100;
+  let sum = 0;
+  for (let i = 0; i < samples.length; i++) sum += samples[i] * samples[i];
+  const rms = Math.sqrt(sum / samples.length);
+  return rms > 0 ? 20 * Math.log10(rms) : -100;
+}
+
+// Common Whisper hallucination patterns in Spanish (TTS / silence artifacts).
+// If the whole transcription matches one of these (case-insensitive,
+// punctuation-stripped), drop it.
+const HALLUCINATION_PATTERNS = [
+  /^suscr[ií]bete/i,
+  /^gracias por ver/i,
+  /^hola( ,)?( encantado)?/i,
+  /^(hey|ey)[, ]/i,
+  /^qu[eé] tal/i,
+  /^subt[ií]tulos? (creados? )?por/i,
+  /^muchas gracias\b\.?$/i,
+];
+
+function looksLikeHallucination(text) {
+  const norm = text.replace(/[.,!?¿¡…]/g, "").trim();
+  if (!norm) return true;
+  if (norm.length < 5) return true;
+  return HALLUCINATION_PATTERNS.some((re) => re.test(norm));
+}
+
+function enqueueTranscribe(audio) {
+  const next = transcribeChain.then(async () => {
+    const energyDb = chunkEnergyDbfs(audio);
+    if (energyDb < -45) {
+      console.log(`[whisper] skipping silent chunk (${energyDb.toFixed(1)} dBFS)`);
+      return "";
+    }
+    try {
+      const result = await transcriber(audio, {
+        language: "spanish",
+        task: "transcribe",
+      });
+      const text = (result?.text || "").trim();
+      if (looksLikeHallucination(text)) {
+        console.log(`[whisper] discarded hallucination: "${text}"`);
+        return "";
+      }
+      return text;
+    } catch (err) {
+      console.error("[whisper]", err);
+      return "";
+    }
+  });
+  transcribeChain = next.catch(() => {});
+  return next;
+}
+
 async function loadVAD() {
   vad = new EnergyVoiceDetector({
     onSpeechStart: () => setStatus("escuchando", "live"),
-    onSpeechEnd: async (audio) => {
-      setStatus("transcribiendo…", "thinking");
-      try {
-        const result = await transcriber(audio, {
-          language: "spanish",
-          task: "transcribe",
-          chunk_length_s: 30,
-          stride_length_s: 5,
-        });
-        const text = (result?.text || "").trim();
-        if (text) {
-          transcriptText.textContent = text;
-          sendTranscript(text);
-        } else {
-          setStatus("escuchando", "live");
-        }
-      } catch (err) {
-        console.error("[whisper]", err);
-        setStatus(`error stt: ${err.message}`, "error");
+    onChunk: async (audio, { final }) => {
+      setStatus(final ? "transcribiendo…" : "transcribiendo (mid)…", "thinking");
+      const text = await enqueueTranscribe(audio);
+      if (text) {
+        transcriptText.textContent = text;
+        sendTranscript(text);
       }
+      setStatus(vad.speaking ? "escuchando" : "escuchando", "live");
     },
     onMisfire: () => setStatus("escuchando", "live"),
   });
@@ -332,14 +398,8 @@ audioInput.addEventListener("change", async () => {
     const audio = await decodeAudioFileTo16k(file);
     setStatus(`transcribiendo ${file.name}… (${(audio.length / 16000).toFixed(1)}s)`, "thinking");
     const t0 = performance.now();
-    const result = await transcriber(audio, {
-      language: "spanish",
-      task: "transcribe",
-      chunk_length_s: 30,
-      stride_length_s: 5,
-    });
+    const text = await enqueueTranscribe(audio);
     const ms = Math.round(performance.now() - t0);
-    const text = (result?.text || "").trim();
     transcriptText.textContent = text || "(silencio)";
     if (text) sendTranscript(text);
     setStatus(`transcripción ok (${ms}ms)`, "");
@@ -358,14 +418,8 @@ async function transcribeUrl(url) {
   const audio = await decodeAudioFileTo16k(file);
   setStatus(`transcribiendo ${file.name}… (${(audio.length / 16000).toFixed(1)}s)`, "thinking");
   const t0 = performance.now();
-  const result = await transcriber(audio, {
-    language: "spanish",
-    task: "transcribe",
-    chunk_length_s: 30,
-    stride_length_s: 5,
-  });
+  const text = await enqueueTranscribe(audio);
   const ms = Math.round(performance.now() - t0);
-  const text = (result?.text || "").trim();
   transcriptText.textContent = text || "(silencio)";
   if (text) sendTranscript(text);
   setStatus(`transcribió en ${ms}ms`, "");
