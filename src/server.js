@@ -130,17 +130,36 @@ function sanitizeSource(value) {
   return VALID_SOURCES.has(v) ? v : "";
 }
 
+// Hard constraint: never let the same imagen keyword (or one matching a recent
+// resolved URL) appear twice in close succession. The agent's "no repeat"
+// rule is a soft hint; this is the enforcement.
+const NO_REPEAT_WINDOW = 6;
+function imagenIsRecent(imagen) {
+  if (!imagen) return false;
+  const norm = imagen.trim().toLowerCase();
+  if (!norm) return false;
+  const recent = state.slides.slice(-NO_REPEAT_WINDOW);
+  return recent.some((s) => (s.imagen || "").trim().toLowerCase() === norm);
+}
+
 function applyToolCall(call) {
   if (call.name === "nueva_slide") {
+    let imagen = typeof call.args.imagen === "string" ? call.args.imagen.trim().slice(0, 120) : "";
+    let layout = sanitizeLayout(call.args.layout);
+    if (imagen && imagenIsRecent(imagen)) {
+      console.log(`[applyToolCall] dropping repeated imagen "${imagen}"`);
+      imagen = "";
+      if (layout === "photo") layout = "bullets"; // can't keep photo layout without an image
+    }
     const slide = {
       id: `s${Date.now()}-${state.slides.length}`,
       titulo: call.args.titulo,
       bullets: Array.isArray(call.args.bullets) ? call.args.bullets : [],
       icon: typeof call.args.icon === "string" ? call.args.icon.trim() : "",
-      imagen: typeof call.args.imagen === "string" ? call.args.imagen.trim().slice(0, 120) : "",
-      fuente: sanitizeSource(call.args.fuente),
-      subreddit: sanitizeSubreddit(call.args.subreddit),
-      layout: sanitizeLayout(call.args.layout),
+      imagen,
+      fuente: imagen ? sanitizeSource(call.args.fuente) : "",
+      subreddit: imagen ? sanitizeSubreddit(call.args.subreddit) : "",
+      layout,
       createdAt: Date.now(),
     };
     state.slides.push(slide);
@@ -156,7 +175,13 @@ function applyToolCall(call) {
       slide.icon = call.args.icon.trim();
     }
     if (typeof call.args.imagen === "string" && call.args.imagen.trim()) {
-      slide.imagen = call.args.imagen.trim().slice(0, 120);
+      const candidate = call.args.imagen.trim().slice(0, 120);
+      // Only update if it isn't a recent dupe.
+      if (!imagenIsRecent(candidate) || candidate.toLowerCase() === (slide.imagen || "").toLowerCase()) {
+        slide.imagen = candidate;
+      } else {
+        console.log(`[applyToolCall] dropping repeated imagen update "${candidate}"`);
+      }
     }
     const fuenteFromCall = sanitizeSource(call.args.fuente);
     if (fuenteFromCall) slide.fuente = fuenteFromCall;
@@ -179,7 +204,7 @@ async function processTranscript(wss, transcript, opts = {}) {
   }
   state.isProcessing = true;
   broadcast(wss, { type: "agent:thinking", on: true });
-  console.log(`[transcript] ${transcript} (images=${opts.imagesEnabled ? "on" : "off"}${opts.customInstructions ? ", custom-instr" : ""})`);
+  console.log(`[transcript] ${transcript} (images=${opts.imagesEnabled ? "on" : "off"}, mode=${opts.mode || "bullets"}${opts.customInstructions ? ", custom-instr" : ""})`);
   try {
     const t0 = Date.now();
     const { calls } = await runTurn({
@@ -188,6 +213,7 @@ async function processTranscript(wss, transcript, opts = {}) {
       history: state.history,
       imagesEnabled: opts.imagesEnabled !== false,
       customInstructions: opts.customInstructions || "",
+      mode: opts.mode === "show" ? "show" : "bullets",
     });
     console.log(`[agent] ${Date.now() - t0}ms — ${calls.map((c) => c.name).join(",") || "no-calls"}`);
     for (const call of calls) {
@@ -276,8 +302,9 @@ function buildApp(wss) {
     const customInstructions = typeof req.body?.customInstructions === "string"
       ? req.body.customInstructions.slice(0, 2000)
       : "";
+    const mode = req.body?.mode === "show" ? "show" : "bullets";
     res.json({ ok: true });
-    processTranscript(wss, text, { imagesEnabled, customInstructions });
+    processTranscript(wss, text, { imagesEnabled, customInstructions, mode });
   });
 
   app.post("/api/reset", (_req, res) => {
@@ -311,6 +338,7 @@ export function startServer({ port = PORT } = {}) {
         processTranscript(wss, msg.text.trim(), {
           imagesEnabled: msg.imagesEnabled !== false,
           customInstructions: typeof msg.customInstructions === "string" ? msg.customInstructions.slice(0, 2000) : "",
+          mode: msg.mode === "show" ? "show" : "bullets",
         });
       } else if (msg?.type === "reset") {
         resetState(wss);

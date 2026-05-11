@@ -8,9 +8,14 @@ const transcriptText = document.getElementById("transcriptText");
 const modelSelect = document.getElementById("modelSelect");
 const themeSelect = document.getElementById("themeSelect");
 const imagesToggle = document.getElementById("imagesToggle");
+const modeSelect = document.getElementById("modeSelect");
 
 function getImagesEnabled() {
   return imagesToggle.checked;
+}
+
+function getMode() {
+  return modeSelect?.value || "bullets";
 }
 
 function getCustomInstructions() {
@@ -565,6 +570,7 @@ function sendTranscript(text) {
     text,
     imagesEnabled: getImagesEnabled(),
     customInstructions: getCustomInstructions(),
+    mode: getMode(),
   }));
 }
 
@@ -1050,6 +1056,13 @@ async function init() {
   // Restore images toggle (default off — opt-in).
   imagesToggle.checked = localStorage.getItem("dictado.images") === "1";
   refreshInstructionsBadge();
+
+  // Restore mode.
+  const savedMode = localStorage.getItem("dictado.mode") || "bullets";
+  modeSelect.value = savedMode === "show" ? "show" : "bullets";
+  modeSelect.addEventListener("change", () => {
+    localStorage.setItem("dictado.mode", modeSelect.value);
+  });
   imagesToggle.addEventListener("change", () => {
     localStorage.setItem("dictado.images", imagesToggle.checked ? "1" : "0");
     if (activeSlideIdx >= 0) renderSlide(activeSlideIdx);
