@@ -77,8 +77,21 @@ LAYOUTS — elegí el que mejor sirva al contenido:
 
 CUÁNDO USAR IMAGEN (campo imagen):
 - El orador hizo un chiste o referencia pop ("como Homero cuando…", "se siente como ese meme de…", "es como cuando Bender…")
-- La idea pega más fuerte con un visual conocido que con un icono (ej. al cerrar una sección de impacto)
+- La idea pega más fuerte con un visual conocido que con un icono
 - Hay una analogía con cultura pop concreta
+
+CÓMO USAR IMAGEN — CRÍTICO:
+1. SIEMPRE poné el campo "fuente" explícito ('simpsons' / 'futurama' / 'reddit'). NO confíes en el keyword para ruteo.
+2. Para fuente='simpsons' o 'futurama': el campo imagen DEBE ser DIÁLOGO LITERAL EN INGLÉS del episodio. Ejemplos VÁLIDOS:
+   - "i wish for a turkey sandwich" (Bart en Treehouse of Horror II)
+   - "i wish for world peace" (Lisa, mismo episodio)
+   - "old man yells at cloud" (titular)
+   - "i for one welcome our new ant overlords"
+   - "shut up and take my money" (Fry)
+   - "good news everyone" (Profesor Farnsworth)
+   Ejemplos INVÁLIDOS (no funcionan): "simpsons sandwich", "lisa world peace", "simpsons monkey paw" — son descripciones, no diálogo. Frinkiac es búsqueda por subtítulos.
+3. Si NO sabés la frase literal del momento, usá fuente='reddit' y un keyword de meme conocido en inglés.
+
 NO uses imagen para:
 - Slides técnicas, sobrias, expositivas — usá icon.
 - Cifras (stat) — el número es el visual.
@@ -105,14 +118,20 @@ const tools = {
         .max(120)
         .optional()
         .describe(
-          "Opcional: keyword en INGLÉS para buscar UNA imagen/meme/screencap real. NUNCA inventes contenido — usá solo si la idea se beneficia. Routing: 'simpsons|homer|bart|lisa|marge|moe' → Frinkiac (busca DIÁLOGO LITERAL — Frinkiac indexa subtítulos, así que pasale frases reales del episodio como 'i for one welcome our new ant overlords' o 'old man yells at cloud', NO descripciones tipo 'simpsons predict AI'). 'futurama|fry|bender|leela|zoidberg' → Morbotron (igual: usa frases literales). Otra cosa → Reddit (ver subreddit). Ejemplos: 'old man yells at cloud', 'shut up and take my money', 'this is fine dog fire', 'galaxy brain expanding'.",
+          "Opcional: keyword en INGLÉS para buscar imagen. Si fuente='simpsons' o 'futurama', pasale DIÁLOGO LITERAL del episodio en inglés ('i wish for a turkey sandwich', 'old man yells at cloud', 'i for one welcome our new ant overlords', 'shut up and take my money'). NUNCA descripciones tipo 'simpsons sandwich' o 'lisa world peace' — Frinkiac indexa subtítulos, no temas. Si fuente='reddit', pasale términos típicos de meme ('this is fine', 'galaxy brain', 'drake yes no', 'expanding brain').",
+        ),
+      fuente: z
+        .enum(["simpsons", "futurama", "reddit"])
+        .optional()
+        .describe(
+          "Opcional: de dónde sacar la imagen. 'simpsons' → Frinkiac (screencaps de Los Simpson, búsqueda por DIÁLOGO LITERAL EN INGLÉS). 'futurama' → Morbotron (igual). 'reddit' → memes virales. Si lo omitís, se infiere por el keyword. PONELO EXPLÍCITO siempre que sepas qué show o fuente querés — es mucho más confiable que depender del keyword.",
         ),
       subreddit: z
         .string()
         .max(30)
         .optional()
         .describe(
-          "Opcional: nombre del subreddit (sin 'r/') desde donde buscar la imagen. Solo aplica si NO es Simpsons/Futurama. Elegí el que mejor encaje con el tono del chiste. Opciones: memes (default — memes generales virales), wholesomememes (memes positivos, ternura), reactiongifs (reacciones, expresiones), dankmemes (memes absurdos, irónicos), AdviceAnimals (memes clásicos con texto), ProgrammerHumor (programación/tech), PoliticalHumor (política internacional), aww (animales, ternura genuina), argentina (contenido argentino, política/cultura local), RepublicaArgentina (memes políticos argentinos), oldschoolcool (fotos vintage), interestingasfuck (hechos visuales impactantes), gifs (reacciones genéricas). Si no estás seguro, omití el campo y se usa la cadena default.",
+          "Opcional: subreddit cuando fuente='reddit'. Opciones: memes, wholesomememes, reactiongifs, dankmemes, AdviceAnimals, ProgrammerHumor, PoliticalHumor, aww, argentina, RepublicaArgentina, oldschoolcool, interestingasfuck, gifs.",
         ),
       layout: z
         .enum(LAYOUTS)
@@ -129,6 +148,7 @@ const tools = {
       bullets: z.array(z.string().min(1).max(160)).min(1).max(3),
       icon: z.string().max(40).optional(),
       imagen: z.string().max(120).optional(),
+      fuente: z.enum(["simpsons", "futurama", "reddit"]).optional(),
       subreddit: z.string().max(30).optional(),
       layout: z.enum(LAYOUTS).optional(),
     }),

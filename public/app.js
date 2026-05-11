@@ -230,15 +230,15 @@ const SLIDE_SPARKLE = '<div class="slide-sparkle"></div>';
 const imageCache = new Map();
 const imagePending = new Map();
 
-async function resolveImage(keyword, subreddit = "") {
+async function resolveImage(keyword, subreddit = "", fuente = "") {
   if (!keyword) return null;
-  const cacheKey = subreddit ? `${subreddit}::${keyword}` : keyword;
+  const cacheKey = [fuente || "auto", subreddit || "-", keyword].join("::");
   if (imageCache.has(cacheKey)) return imageCache.get(cacheKey);
   if (imagePending.has(cacheKey)) return imagePending.get(cacheKey);
-  const url = subreddit
-    ? `/api/image-search?q=${encodeURIComponent(keyword)}&sub=${encodeURIComponent(subreddit)}`
-    : `/api/image-search?q=${encodeURIComponent(keyword)}`;
-  const p = fetch(url)
+  const params = new URLSearchParams({ q: keyword });
+  if (subreddit) params.set("sub", subreddit);
+  if (fuente) params.set("fuente", fuente);
+  const p = fetch(`/api/image-search?${params.toString()}`)
     .then((r) => r.json())
     .then((data) => data?.url || null)
     .then((u) => {
@@ -255,8 +255,8 @@ async function resolveImage(keyword, subreddit = "") {
   return p;
 }
 
-function cachedImage(keyword, subreddit = "") {
-  const k = subreddit ? `${subreddit}::${keyword}` : keyword;
+function cachedImage(keyword, subreddit = "", fuente = "") {
+  const k = [fuente || "auto", subreddit || "-", keyword].join("::");
   return imageCache.has(k) ? imageCache.get(k) : undefined;
 }
 
@@ -343,8 +343,8 @@ function renderSlide(idx) {
   // placeholder for a real <img>, or fall back to the slide's icon if the
   // search returned nothing / the image fails to load. Skip when images
   // are disabled in the toggle.
-  if (s.imagen && getImagesEnabled() && cachedImage(s.imagen, s.subreddit) === undefined) {
-    resolveImage(s.imagen, s.subreddit || "").then((url) => {
+  if (s.imagen && getImagesEnabled() && cachedImage(s.imagen, s.subreddit, s.fuente) === undefined) {
+    resolveImage(s.imagen, s.subreddit || "", s.fuente || "").then((url) => {
       if (activeSlideIdx !== idx) return;
       const wrap = slideFrame.querySelector(".slide-image");
       if (!wrap) return;
@@ -386,9 +386,9 @@ function splitTitleForSplitLayout(t) {
   return [t, ""];
 }
 
-function imageHTML(keyword, subreddit = "") {
+function imageHTML(keyword, subreddit = "", fuente = "") {
   if (!keyword) return "";
-  const cached = cachedImage(keyword, subreddit);
+  const cached = cachedImage(keyword, subreddit, fuente);
   if (cached) {
     return `<div class="slide-image">
       <img alt="${escapeHtml(keyword)}" src="${escapeHtml(cached)}" referrerpolicy="no-referrer" />
@@ -419,7 +419,7 @@ function renderLayoutHTML(s, idx) {
       : "";
     return `<div class="slide entering layout-photo">
       ${SLIDE_BG}
-      ${imageHTML(effectiveImagen, s.subreddit || "")}
+      ${imageHTML(effectiveImagen, s.subreddit || "", s.fuente || "")}
       <div class="photo-content">
         <h2>${t}</h2>
         ${bullets}

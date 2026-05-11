@@ -73,16 +73,37 @@ async function redditMemeResolve(keyword, subreddit) {
   return null;
 }
 
-export async function resolveMemeImageUrl(keyword, subreddit) {
+export async function resolveMemeImageUrl(keyword, subreddit, fuente) {
   const k = keyword.toLowerCase();
-  if (/\b(simpsons?|homer|bart|lisa|marge|moe|burns|flanders|skinner|krusty|nelson|milhouse|apu)\b/.test(k)) {
-    const stripped = keyword.replace(/\bsimpsons?\b/gi, "").trim() || keyword;
-    return frinkiacFamilyResolve(stripped, "frinkiac.com");
+  // Resolve which source to use: explicit `fuente` wins; otherwise fall
+  // back to the keyword heuristic for backwards compatibility.
+  let source = fuente;
+  if (!source) {
+    if (/\b(simpsons?|homer|bart|lisa|marge|moe|burns|flanders|skinner|krusty|nelson|milhouse|apu)\b/.test(k)) source = "simpsons";
+    else if (/\b(futurama|fry|bender|leela|zoidberg|farnsworth|hermes|amy wong|nibbler)\b/.test(k)) source = "futurama";
+    else source = "reddit";
   }
-  if (/\b(futurama|fry|bender|leela|zoidberg|farnsworth|hermes|amy wong|nibbler)\b/.test(k)) {
-    const stripped = keyword.replace(/\bfuturama\b/gi, "").trim() || keyword;
-    return frinkiacFamilyResolve(stripped, "morbotron.com");
+
+  if (source === "simpsons" || source === "futurama") {
+    const host = source === "simpsons" ? "frinkiac.com" : "morbotron.com";
+    const showWord = source === "simpsons" ? /\bsimpsons?\b/gi : /\bfuturama\b/gi;
+    const stripped = keyword.replace(showWord, "").trim() || keyword;
+    const hit = await frinkiacFamilyResolve(stripped, host);
+    if (hit) return hit;
+    // No caption match — try once more with the keyword reduced to the
+    // last 4 words (a single literal phrase is often more findable than a
+    // long description).
+    const tail = stripped.split(/\s+/).slice(-4).join(" ");
+    if (tail !== stripped) {
+      const hit2 = await frinkiacFamilyResolve(tail, host);
+      if (hit2) return hit2;
+    }
+    // Last resort: fall through to Reddit so the slide still gets SOMETHING
+    // instead of dropping to the icon fallback.
+    console.log(`[image-search] ${source} miss for "${keyword}" — falling back to reddit`);
+    return redditMemeResolve(keyword, subreddit);
   }
+
   return redditMemeResolve(keyword, subreddit);
 }
 
@@ -102,6 +123,12 @@ function sanitizeSubreddit(value) {
   const s = value.trim().replace(/^r\//i, "").replace(/[^A-Za-z0-9_]/g, "").slice(0, 30);
   return s;
 }
+const VALID_SOURCES = new Set(["simpsons", "futurama", "reddit"]);
+function sanitizeSource(value) {
+  if (typeof value !== "string") return "";
+  const v = value.trim().toLowerCase();
+  return VALID_SOURCES.has(v) ? v : "";
+}
 
 function applyToolCall(call) {
   if (call.name === "nueva_slide") {
@@ -111,6 +138,7 @@ function applyToolCall(call) {
       bullets: Array.isArray(call.args.bullets) ? call.args.bullets : [],
       icon: typeof call.args.icon === "string" ? call.args.icon.trim() : "",
       imagen: typeof call.args.imagen === "string" ? call.args.imagen.trim().slice(0, 120) : "",
+      fuente: sanitizeSource(call.args.fuente),
       subreddit: sanitizeSubreddit(call.args.subreddit),
       layout: sanitizeLayout(call.args.layout),
       createdAt: Date.now(),
@@ -130,6 +158,8 @@ function applyToolCall(call) {
     if (typeof call.args.imagen === "string" && call.args.imagen.trim()) {
       slide.imagen = call.args.imagen.trim().slice(0, 120);
     }
+    const fuenteFromCall = sanitizeSource(call.args.fuente);
+    if (fuenteFromCall) slide.fuente = fuenteFromCall;
     const subFromCall = sanitizeSubreddit(call.args.subreddit);
     if (subFromCall) slide.subreddit = subFromCall;
     if (typeof call.args.layout === "string" && VALID_LAYOUTS.has(call.args.layout)) {
@@ -210,13 +240,14 @@ function buildApp(wss) {
   app.get("/api/image-search", async (req, res) => {
     const q = String(req.query.q || "").trim().slice(0, 200);
     const subreddit = sanitizeSubreddit(req.query.sub || "");
+    const fuente = sanitizeSource(req.query.fuente || "");
     if (!q) return res.status(400).json({ ok: false, error: "missing q" });
-    const cacheKey = subreddit ? `${subreddit}::${q}` : q;
+    const cacheKey = [fuente || "auto", subreddit || "-", q].join("::");
     if (imageResolveCache.has(cacheKey)) {
       return res.json({ ok: true, url: imageResolveCache.get(cacheKey), cached: true });
     }
     try {
-      const url = await resolveMemeImageUrl(q, subreddit);
+      const url = await resolveMemeImageUrl(q, subreddit, fuente);
       imageResolveCache.set(cacheKey, url);
       if (imageResolveCache.size > 200) {
         const oldest = imageResolveCache.keys().next().value;
