@@ -42,6 +42,7 @@ function applyToolCall(call) {
       titulo: call.args.titulo,
       bullets: Array.isArray(call.args.bullets) ? call.args.bullets : [],
       icon: typeof call.args.icon === "string" ? call.args.icon.trim() : "",
+      emoji: typeof call.args.emoji === "string" ? call.args.emoji.trim().slice(0, 8) : "",
       layout: sanitizeLayout(call.args.layout),
       createdAt: Date.now(),
     };
@@ -56,6 +57,9 @@ function applyToolCall(call) {
     slide.bullets = [...slide.bullets, ...incoming].slice(0, 5);
     if (typeof call.args.icon === "string" && call.args.icon.trim()) {
       slide.icon = call.args.icon.trim();
+    }
+    if (typeof call.args.emoji === "string" && call.args.emoji.trim()) {
+      slide.emoji = call.args.emoji.trim().slice(0, 8);
     }
     if (typeof call.args.layout === "string" && VALID_LAYOUTS.has(call.args.layout)) {
       slide.layout = call.args.layout;

@@ -246,14 +246,27 @@ function renderLayoutHTML(s, idx) {
   const t = wrapWords(s.titulo || "");
   const b = (s.bullets || []).map(escapeHtml);
   const icon = s.icon ? escapeHtml(s.icon) : "";
+  const emoji = s.emoji ? escapeHtml(s.emoji) : "";
   const meta = `<div class="slide-meta">${idx + 1} / ${slides.length}</div>`;
+
+  // The visual slot for cover and bullets layouts can be either emoji (text,
+  // takes priority because it's more graphical) or icon (SVG fallback).
+  const coverVisual = emoji
+    ? `<div class="cover-emoji">${emoji}</div>`
+    : icon
+      ? `<div class="cover-icon" data-icon="${icon}"></div>`
+      : "";
+  const bulletsVisual = emoji
+    ? `<div class="bullets-emoji">${emoji}</div>`
+    : icon
+      ? `<div class="bullets-icon" data-icon="${icon}"></div>`
+      : "";
 
   if (layout === "cover") {
     const subtitle = b[0] ? `<div class="cover-subtitle">${b[0]}</div>` : "";
-    const iconSlot = icon ? `<div class="cover-icon" data-icon="${icon}"></div>` : "";
     return `<div class="slide entering layout-cover">
       ${SLIDE_BG}${SLIDE_SPARKLE}
-      ${iconSlot}
+      ${coverVisual}
       <h2>${t}</h2>
       ${subtitle}
       ${meta}
@@ -314,14 +327,13 @@ function renderLayoutHTML(s, idx) {
   }
 
   const bullets = b.map((x, i) => `<li style="animation-delay:${i * 80}ms">${x}</li>`).join("");
-  const iconSlot = icon ? `<div class="bullets-icon" data-icon="${icon}"></div>` : "";
   return `<div class="slide entering layout-bullets">
     ${SLIDE_BG}
     <div class="bullets-content">
       <h2>${t}</h2>
       ${bullets ? `<ul>${bullets}</ul>` : ""}
     </div>
-    ${iconSlot}
+    ${bulletsVisual}
     ${meta}
   </div>`;
 }

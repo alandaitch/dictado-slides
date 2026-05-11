@@ -57,6 +57,12 @@ ICONOS (Lucide): SIEMPRE incluí un icono al crear una slide. Tenés ~1500 a dis
 - objetivos: flag, trophy, rocket, mountain, crown
 - problemas: bug, x-circle, life-buoy
 
+VISUAL — icon vs emoji:
+- Pesando entre los dos, **emoji** le da textura emocional y color a la slide (🚀💸🧠🎯🌎📈⚡🔥💡🎉) — usalo cuando la idea tiene cuerpo emocional o conviene "celebrar" visualmente.
+- **icon** queda más profesional/técnico/limpio. Si la slide es expositiva sin carga emocional, usá solo icon.
+- Si ponés ambos, el emoji gana en cover (toma el lugar visual gigante) y el icon queda chico.
+- Para cover slides (impacto/sección), un emoji bien elegido pega mejor que un icon. Para stat slides (cifras), el icon queda mejor.
+
 LAYOUTS — elegí el que mejor sirva al contenido:
 - **bullets** (default): 2-5 ideas que desarrollar el mismo tema.
 - **cover**: introducción de sección o capítulo. Solo el título potente y opcionalmente un subtítulo corto en bullets[0]. Bullets vacío = solo título gigante.
@@ -79,6 +85,13 @@ const tools = {
         .describe(
           "Nombre de un icono Lucide (kebab-case). Tenés ~1500 a disposición — elegí libremente en inglés. Si dudás, alguno de: rocket, brain, lightbulb, chart-bar, dollar-sign, users, target, sparkles, zap, trending-up, message-square, code, book-open, clock, flag, trophy.",
         ),
+      emoji: z
+        .string()
+        .max(8)
+        .optional()
+        .describe(
+          "Opcional: UN emoji a color que represente la idea (🚀, 💸, 🧠, 🎯, 🌎, 📈, ⚡, 🔥, 💡, etc). Si lo ponés se renderiza gigante en lugar del icono y le da textura/vida a la slide. Usar para slides con tono emocional, celebratorio, divertido o que merezcan un visual fuerte. Para slides técnicas/sobrias dejar vacío y usar solo icon.",
+        ),
       layout: z
         .enum(LAYOUTS)
         .describe(
@@ -89,10 +102,11 @@ const tools = {
   }),
   agregar_bullet: tool({
     description:
-      "Agregar uno o varios bullets a la slide actual. Usar cuando la persona sigue desarrollando el mismo tema. Opcionalmente actualizar icono o layout.",
+      "Agregar uno o varios bullets a la slide actual. Usar cuando la persona sigue desarrollando el mismo tema. Opcionalmente actualizar icono, emoji o layout.",
     inputSchema: z.object({
       bullets: z.array(z.string().min(1).max(160)).min(1).max(3),
       icon: z.string().max(40).optional(),
+      emoji: z.string().max(8).optional(),
       layout: z.enum(LAYOUTS).optional(),
     }),
     execute: async (args) => ({ ok: true, ...args }),
