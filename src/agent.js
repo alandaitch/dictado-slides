@@ -172,19 +172,11 @@ function describeCurrentSlide(slide) {
   return `Slide actual #${slide.index + 1}\nTítulo: ${slide.titulo}\nBullets:\n${bullets}\n(${slide.bullets.length}/5 bullets)`;
 }
 
-export async function runTurn({ transcript, currentSlide, history = [], imagesEnabled = true, customInstructions = "", mode = "bullets" }) {
+export async function runTurn({ transcript, currentSlide, history = [], imagesEnabled = true, customInstructions = "" }) {
   const model = await getModel();
   const flags = imagesEnabled
     ? "IMÁGENES habilitadas. PODÉS usar imagen cuando claramente la slide se beneficie (chiste, meme, referencia pop, analogía cultural, momento emocional fuerte). NO uses imagen para slides técnicas, expositivas, sobrias, o cuando solo querés ilustrar una idea genérica. Si el orador NO está haciendo una referencia pop específica, dejá la slide con solo icon — es mejor que una imagen forzada. NUNCA repitas el mismo keyword en slides consecutivas (el server rechaza duplicados de las últimas 6 slides)."
     : "IMÁGENES deshabilitadas — NO uses el campo imagen bajo ningún concepto.";
-  const modeBlock = mode === "show"
-    ? `\n\nMODO SHOW activado — la presentación es CINEMATOGRÁFICA, no expositiva:
-- titulares POTENTES de 2-6 palabras
-- bullets array: VACÍO o 1 solo bullet ULTRA-CORTO (máximo 6 palabras, como subtítulo)
-- layout default: 'cover' (impacto) o 'photo' (cuando hay imagen)
-- imagen MUCHO más a menudo — cada idea con un visual fuerte aporta. Aún con esto, sin repetir.
-- NUNCA layout 'bullets' con muchos puntos. Es show, no documento.`
-    : "";
   const customBlock = customInstructions.trim()
     ? `\n\nINSTRUCCIONES PERSONALIZADAS DEL USUARIO (priorizalas sobre defaults):\n${customInstructions.trim()}\n`
     : "";
@@ -192,7 +184,7 @@ export async function runTurn({ transcript, currentSlide, history = [], imagesEn
     ...history,
     {
       role: "user",
-      content: `${flags}${modeBlock}${customBlock}\n\nEstado: ${describeCurrentSlide(currentSlide)}\n\nLo que el orador acaba de decir (entre comillas):\n"""\n${transcript}\n"""`,
+      content: `${flags}${customBlock}\n\nEstado: ${describeCurrentSlide(currentSlide)}\n\nLo que el orador acaba de decir (entre comillas):\n"""\n${transcript}\n"""`,
     },
   ];
 

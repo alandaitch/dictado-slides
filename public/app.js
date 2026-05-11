@@ -570,7 +570,6 @@ function sendTranscript(text) {
     text,
     imagesEnabled: getImagesEnabled(),
     customInstructions: getCustomInstructions(),
-    mode: getMode(),
   }));
 }
 
@@ -1057,11 +1056,17 @@ async function init() {
   imagesToggle.checked = localStorage.getItem("dictado.images") === "1";
   refreshInstructionsBadge();
 
-  // Restore mode.
+  // Restore mode — pure presentation toggle, no agent involvement.
+  function applyModeClass() {
+    document.body.classList.toggle("mode-show", modeSelect.value === "show");
+  }
   const savedMode = localStorage.getItem("dictado.mode") || "bullets";
   modeSelect.value = savedMode === "show" ? "show" : "bullets";
+  applyModeClass();
   modeSelect.addEventListener("change", () => {
     localStorage.setItem("dictado.mode", modeSelect.value);
+    applyModeClass();
+    if (activeSlideIdx >= 0) renderSlide(activeSlideIdx);
   });
   imagesToggle.addEventListener("change", () => {
     localStorage.setItem("dictado.images", imagesToggle.checked ? "1" : "0");

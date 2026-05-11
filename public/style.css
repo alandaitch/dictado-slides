@@ -307,6 +307,20 @@ body {
     radial-gradient(ellipse at bottom, color-mix(in srgb, var(--fg) 3%, transparent), transparent 50%);
 }
 
+/* ---------- Show mode: same slides, less text ---------- */
+/* Pure presentation toggle: hides bullets/subtitles, pumps titles and visuals
+   so the same content from the agent can be displayed as a cinematic show or
+   as a documental bullets-list interchangeably. */
+body.mode-show .slide ul,
+body.mode-show .slide .stat-context,
+body.mode-show .slide .cover-subtitle { display: none; }
+body.mode-show .slide.layout-bullets .bullets-content { justify-content: center; }
+body.mode-show .slide.layout-bullets h2 { font-size: clamp(52px, 7vw, 110px); line-height: 0.98; }
+body.mode-show .slide.layout-photo .photo-content { justify-content: center; }
+body.mode-show .slide.layout-photo h2 { font-size: clamp(44px, 6vw, 88px); }
+body.mode-show .slide.layout-stat h2 { font-size: clamp(36px, 4vw, 60px); }
+body.mode-show .slide.layout-split .split-text { font-size: clamp(32px, 4vw, 56px); }
+
 /* Fullscreen presentation mode: hide chrome, slide fills viewport. */
 body.fs .topbar,
 body.fs .footer { display: none; }

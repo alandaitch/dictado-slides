@@ -204,7 +204,7 @@ async function processTranscript(wss, transcript, opts = {}) {
   }
   state.isProcessing = true;
   broadcast(wss, { type: "agent:thinking", on: true });
-  console.log(`[transcript] ${transcript} (images=${opts.imagesEnabled ? "on" : "off"}, mode=${opts.mode || "bullets"}${opts.customInstructions ? ", custom-instr" : ""})`);
+  console.log(`[transcript] ${transcript} (images=${opts.imagesEnabled ? "on" : "off"}${opts.customInstructions ? ", custom-instr" : ""})`);
   try {
     const t0 = Date.now();
     const { calls } = await runTurn({
@@ -213,7 +213,6 @@ async function processTranscript(wss, transcript, opts = {}) {
       history: state.history,
       imagesEnabled: opts.imagesEnabled !== false,
       customInstructions: opts.customInstructions || "",
-      mode: opts.mode === "show" ? "show" : "bullets",
     });
     console.log(`[agent] ${Date.now() - t0}ms — ${calls.map((c) => c.name).join(",") || "no-calls"}`);
     for (const call of calls) {
@@ -302,9 +301,8 @@ function buildApp(wss) {
     const customInstructions = typeof req.body?.customInstructions === "string"
       ? req.body.customInstructions.slice(0, 2000)
       : "";
-    const mode = req.body?.mode === "show" ? "show" : "bullets";
     res.json({ ok: true });
-    processTranscript(wss, text, { imagesEnabled, customInstructions, mode });
+    processTranscript(wss, text, { imagesEnabled, customInstructions });
   });
 
   app.post("/api/reset", (_req, res) => {
@@ -338,7 +336,6 @@ export function startServer({ port = PORT } = {}) {
         processTranscript(wss, msg.text.trim(), {
           imagesEnabled: msg.imagesEnabled !== false,
           customInstructions: typeof msg.customInstructions === "string" ? msg.customInstructions.slice(0, 2000) : "",
-          mode: msg.mode === "show" ? "show" : "bullets",
         });
       } else if (msg?.type === "reset") {
         resetState(wss);
