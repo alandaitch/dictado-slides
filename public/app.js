@@ -246,27 +246,14 @@ function renderLayoutHTML(s, idx) {
   const t = wrapWords(s.titulo || "");
   const b = (s.bullets || []).map(escapeHtml);
   const icon = s.icon ? escapeHtml(s.icon) : "";
-  const emoji = s.emoji ? escapeHtml(s.emoji) : "";
   const meta = `<div class="slide-meta">${idx + 1} / ${slides.length}</div>`;
-
-  // The visual slot for cover and bullets layouts can be either emoji (text,
-  // takes priority because it's more graphical) or icon (SVG fallback).
-  const coverVisual = emoji
-    ? `<div class="cover-emoji">${emoji}</div>`
-    : icon
-      ? `<div class="cover-icon" data-icon="${icon}"></div>`
-      : "";
-  const bulletsVisual = emoji
-    ? `<div class="bullets-emoji">${emoji}</div>`
-    : icon
-      ? `<div class="bullets-icon" data-icon="${icon}"></div>`
-      : "";
 
   if (layout === "cover") {
     const subtitle = b[0] ? `<div class="cover-subtitle">${b[0]}</div>` : "";
+    const iconSlot = icon ? `<div class="cover-icon" data-icon="${icon}"></div>` : "";
     return `<div class="slide entering layout-cover">
       ${SLIDE_BG}${SLIDE_SPARKLE}
-      ${coverVisual}
+      ${iconSlot}
       <h2>${t}</h2>
       ${subtitle}
       ${meta}
@@ -327,13 +314,14 @@ function renderLayoutHTML(s, idx) {
   }
 
   const bullets = b.map((x, i) => `<li style="animation-delay:${i * 80}ms">${x}</li>`).join("");
+  const iconSlot = icon ? `<div class="bullets-icon" data-icon="${icon}"></div>` : "";
   return `<div class="slide entering layout-bullets">
     ${SLIDE_BG}
     <div class="bullets-content">
       <h2>${t}</h2>
       ${bullets ? `<ul>${bullets}</ul>` : ""}
     </div>
-    ${bulletsVisual}
+    ${iconSlot}
     ${meta}
   </div>`;
 }
@@ -877,6 +865,65 @@ startBtn.addEventListener("click", async () => {
 
 resetBtn.addEventListener("click", () => {
   if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "reset" }));
+});
+
+// ---------- Fullscreen ----------
+const fullscreenBtn = document.getElementById("fullscreenBtn");
+
+function showFsHint() {
+  const old = document.querySelector(".fs-hint");
+  if (old) old.remove();
+  const hint = document.createElement("div");
+  hint.className = "fs-hint";
+  hint.textContent = "← → para navegar · esc para salir";
+  document.body.appendChild(hint);
+  setTimeout(() => hint.remove(), 4000);
+}
+
+async function toggleFullscreen() {
+  if (!document.fullscreenElement) {
+    try {
+      await document.documentElement.requestFullscreen();
+      document.body.classList.add("fs");
+      showFsHint();
+    } catch (err) {
+      console.error("[fs] error:", err);
+    }
+  } else {
+    await document.exitFullscreen().catch(() => {});
+    document.body.classList.remove("fs");
+  }
+}
+
+document.addEventListener("fullscreenchange", () => {
+  document.body.classList.toggle("fs", !!document.fullscreenElement);
+});
+
+fullscreenBtn.addEventListener("click", toggleFullscreen);
+
+document.addEventListener("keydown", (e) => {
+  if (themeModal && !themeModal.hidden) return;
+  // Ignore when typing in any input.
+  const tag = (e.target?.tagName || "").toLowerCase();
+  if (tag === "input" || tag === "textarea" || tag === "select") return;
+
+  if (e.key === "f" || e.key === "F") {
+    toggleFullscreen();
+  } else if (e.key === "ArrowRight" || e.key === " " || e.key === "PageDown") {
+    if (slides.length && activeSlideIdx < slides.length - 1) {
+      renderSlide(activeSlideIdx + 1);
+      e.preventDefault();
+    }
+  } else if (e.key === "ArrowLeft" || e.key === "PageUp") {
+    if (slides.length && activeSlideIdx > 0) {
+      renderSlide(activeSlideIdx - 1);
+      e.preventDefault();
+    }
+  } else if (e.key === "Home") {
+    if (slides.length) renderSlide(0);
+  } else if (e.key === "End") {
+    if (slides.length) renderSlide(slides.length - 1);
+  }
 });
 
 async function decodeAudioFileTo16k(file) {
