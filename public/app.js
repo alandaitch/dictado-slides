@@ -6,6 +6,15 @@ const slideFrame = document.getElementById("slideFrame");
 const stripEl = document.getElementById("strip");
 const transcriptText = document.getElementById("transcriptText");
 const modelSelect = document.getElementById("modelSelect");
+const themeSelect = document.getElementById("themeSelect");
+
+const THEMES = ["default", "mono", "cyber", "sunset", "paper"];
+function applyTheme(name) {
+  const t = THEMES.includes(name) ? name : "default";
+  document.body.classList.remove(...THEMES.map((x) => `theme-${x}`));
+  document.body.classList.add(`theme-${t}`);
+  return t;
+}
 
 let ws;
 let vad;
@@ -560,6 +569,14 @@ async function loadVAD() {
 }
 
 async function init() {
+  // Restore theme (synchronous, before anything renders).
+  const savedTheme = applyTheme(localStorage.getItem("dictado.theme") || "default");
+  themeSelect.value = savedTheme;
+  themeSelect.addEventListener("change", () => {
+    const t = applyTheme(themeSelect.value);
+    localStorage.setItem("dictado.theme", t);
+  });
+
   // Restore previously selected model.
   const savedModel = localStorage.getItem("dictado.model");
   if (savedModel && [...modelSelect.options].some((o) => o.value === savedModel)) {
