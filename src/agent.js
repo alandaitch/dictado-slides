@@ -175,8 +175,8 @@ function describeCurrentSlide(slide) {
 export async function runTurn({ transcript, currentSlide, history = [], imagesEnabled = true, customInstructions = "" }) {
   const model = await getModel();
   const flags = imagesEnabled
-    ? "IMÁGENES habilitadas — sé GENEROSO con el campo imagen. Cualquier idea con cuerpo visual, humor, referencia pop, política, cultura o emoción merece imagen. Default: si la transcripción tiene algo más que datos secos, buscá imagen. Para imagen usá layout 'photo'."
-    : "IMÁGENES deshabilitadas — NO uses el campo imagen bajo ningún concepto. Usá solo icon.";
+    ? "IMÁGENES habilitadas. PODÉS usar imagen cuando claramente la slide se beneficie (chiste, meme, referencia pop, analogía cultural, momento emocional fuerte). NO uses imagen para slides técnicas, expositivas, sobrias, o cuando solo querés ilustrar una idea genérica. Si el orador NO está haciendo una referencia pop específica, dejá la slide con solo icon — es mejor que una imagen forzada. NUNCA repitas el mismo keyword en slides consecutivas."
+    : "IMÁGENES deshabilitadas — NO uses el campo imagen bajo ningún concepto.";
   const customBlock = customInstructions.trim()
     ? `\n\nINSTRUCCIONES PERSONALIZADAS DEL USUARIO (priorizalas sobre defaults):\n${customInstructions.trim()}\n`
     : "";
@@ -184,7 +184,7 @@ export async function runTurn({ transcript, currentSlide, history = [], imagesEn
     ...history,
     {
       role: "user",
-      content: `${flags}${customBlock}\n\n${describeCurrentSlide(currentSlide)}\n\n--- TRANSCRIPCIÓN NUEVA ---\n${transcript}\n\nDecidí qué hacer.`,
+      content: `${flags}${customBlock}\n\nEstado: ${describeCurrentSlide(currentSlide)}\n\nLo que el orador acaba de decir (entre comillas):\n"""\n${transcript}\n"""`,
     },
   ];
 
