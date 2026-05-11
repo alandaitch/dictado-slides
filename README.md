@@ -69,10 +69,44 @@ El botón **audio…** acepta `.wav`, `.mp3`, `.m4a` o `.mp4`. Lo decodifica a
 16 kHz mono y lo pasa por el mismo pipeline. Útil para procesar audios
 pre-grabados.
 
+## Selector de modelo
+
+En la topbar hay un dropdown para cambiar el modelo de STT en caliente:
+
+- **whisper-turbo** (~1.3 GB) — mejor calidad en español. Encoder fp16,
+  decoder cuantizado q4. Default.
+- **whisper-small** (~970 MB) — balance.
+- **whisper-base** (~280 MB) — el más rápido de los que sirven en español.
+  Confunde palabras puntuales ("IA" → "ella", "guiones" → "bienes") pero
+  para borradores está OK y carga rápido.
+
+La selección persiste en `localStorage`. Cambiar modelo recarga el pipeline
+sin tirar el server ni perder slides.
+
+**Lo que NO funciona hoy (lo intenté):**
+
+- **whisper-tiny** — genera loops infinitos de tokens basura en español.
+  Inutilizable. Sacado del selector.
+- **Moonshine-es** (sería 5× más rápido que tiny y diseñado para streaming)
+  — la CDN oficial de moonshine.ai está devolviendo 404 para todos los
+  modelos al momento de escribir esto. El loader está implementado en
+  `app.js` (`loadMoonshineTranscriber`), listo para activar cuando arreglen.
+- **lite-whisper-large-v3-turbo-fast** — anunciado como faster-than-turbo,
+  pero el ONNX publicado solo soporta inglés.
+
+## Iconos en las slides
+
+Cada slide tiene un icono Lucide (~1500 disponibles) elegido por el agente.
+Los tools del agente (`nueva_slide`, `agregar_bullet`) reciben un parámetro
+`icon` en kebab-case (ej. `rocket`, `dollar-sign`, `chart-bar`). El prompt
+del agente tiene una guía con los nombres más comunes agrupados por tema.
+
 ## Tuning
 
-En `public/app.js`, `EnergyVoiceDetector` tiene tres parámetros:
+En `public/app.js`, `EnergyVoiceDetector` tiene cuatro parámetros:
 
 - `threshold` (0.012) — RMS mínimo para considerar "voz"
-- `silenceMs` (700) — silencio que finaliza una oración
+- `silenceMs` (600) — silencio que finaliza una oración
 - `minSpeechMs` (350) — duración mínima de un turno para no descartarlo
+- `maxChunkMs` (6000) — flush forzado para no esperar pausas
+- `overlapMs` (250) — overlap entre chunks así Whisper no corta palabras

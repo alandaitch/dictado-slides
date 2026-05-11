@@ -36,6 +36,7 @@ function applyToolCall(call) {
       id: `s${Date.now()}-${state.slides.length}`,
       titulo: call.args.titulo,
       bullets: Array.isArray(call.args.bullets) ? call.args.bullets : [],
+      icon: typeof call.args.icon === "string" ? call.args.icon.trim() : "",
       createdAt: Date.now(),
     };
     state.slides.push(slide);
@@ -47,6 +48,9 @@ function applyToolCall(call) {
     const slide = state.slides[i];
     const incoming = Array.isArray(call.args.bullets) ? call.args.bullets : [];
     slide.bullets = [...slide.bullets, ...incoming].slice(0, 5);
+    if (typeof call.args.icon === "string" && call.args.icon.trim()) {
+      slide.icon = call.args.icon.trim();
+    }
     return { type: "slide:update", slide, index: i, total: state.slides.length };
   }
   return { type: "wait", reason: call.args?.razon || "esperando" };

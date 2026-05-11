@@ -57,7 +57,26 @@ body {
 .status.thinking .status-text { color: var(--accent); }
 .status.error .status-text { color: #ef4444; }
 
-.controls { display: flex; gap: 8px; }
+.controls { display: flex; gap: 8px; align-items: center; }
+.select {
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  background: transparent;
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 7px 28px 7px 12px;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%238a8a93' stroke-width='2'><polyline points='6 9 12 15 18 9'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  transition: background-color .15s, border-color .15s;
+}
+.select:hover { background-color: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.2); }
+.select option { background: var(--bg-2); color: var(--fg); }
 .btn {
   font-family: inherit;
   font-size: 13px;
@@ -126,6 +145,33 @@ body {
 .slide.empty h1 em { color: var(--accent); font-style: normal; }
 .slide.empty .hint { color: var(--fg-dim); font-size: 16px; max-width: 540px; }
 
+.slide-head {
+  display: flex;
+  align-items: center;
+  gap: clamp(16px, 2vw, 28px);
+}
+.slide-icon {
+  flex: 0 0 auto;
+  width: clamp(56px, 6vw, 92px);
+  height: clamp(56px, 6vw, 92px);
+  border-radius: 18px;
+  background: linear-gradient(135deg, rgba(249,115,22,0.18) 0%, rgba(249,115,22,0.04) 100%);
+  border: 1px solid rgba(249,115,22,0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: iconIn .5s cubic-bezier(.22,.61,.36,1);
+}
+.slide-icon svg {
+  width: 60%;
+  height: 60%;
+  color: var(--accent);
+  stroke-width: 1.8;
+}
+@keyframes iconIn {
+  from { opacity: 0; transform: scale(0.7) rotate(-8deg); }
+  to { opacity: 1; transform: scale(1) rotate(0); }
+}
 .slide h2 {
   font-size: clamp(36px, 5.5vw, 80px);
   font-weight: 700;
@@ -135,6 +181,7 @@ body {
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
+  flex: 1;
 }
 .slide ul {
   list-style: none;

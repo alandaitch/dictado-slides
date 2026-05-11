@@ -5,14 +5,60 @@ const resetBtn = document.getElementById("resetBtn");
 const slideFrame = document.getElementById("slideFrame");
 const stripEl = document.getElementById("strip");
 const transcriptText = document.getElementById("transcriptText");
+const modelSelect = document.getElementById("modelSelect");
 
 let ws;
 let vad;
 let transcriber;
 let isRecording = false;
 let micStream;
+let lucideMod;
 const slides = [];
 let activeSlideIdx = -1;
+
+// Picked empirically — q8 on base/small produces token-loop garbage in Spanish
+// on WebGPU, so we keep them at fp32 there. Turbo's huge enough to need q4.
+const MODEL_DTYPES = {
+  "onnx-community/whisper-large-v3-turbo": (hasGPU) =>
+    hasGPU
+      ? { encoder_model: "fp16", decoder_model_merged: "q4" }
+      : { encoder_model: "q8", decoder_model_merged: "q4" },
+  "onnx-community/whisper-small": (hasGPU) => (hasGPU ? "fp32" : "q8"),
+  "onnx-community/whisper-base": (hasGPU) => (hasGPU ? "fp32" : "q8"),
+};
+
+function kebabToPascal(name) {
+  return name
+    .split(/[-\s]+/)
+    .filter(Boolean)
+    .map((w) => w[0].toUpperCase() + w.slice(1).toLowerCase())
+    .join("");
+}
+
+async function ensureLucide() {
+  if (lucideMod) return lucideMod;
+  lucideMod = await import("https://cdn.jsdelivr.net/npm/lucide@0.469.0/+esm");
+  return lucideMod;
+}
+
+function renderIconInto(el, iconName) {
+  if (!el || !iconName || !lucideMod) return;
+  const key = kebabToPascal(iconName);
+  const data = lucideMod.icons?.[key];
+  if (!data) {
+    el.innerHTML = "";
+    return;
+  }
+  // lucide icon shape: [tag, attrs, children]
+  // We just call createElement directly via the module's helper.
+  try {
+    const svg = lucideMod.createElement(data);
+    el.innerHTML = "";
+    el.appendChild(svg);
+  } catch {
+    el.innerHTML = "";
+  }
+}
 
 function setStatus(text, mode = "") {
   statusTextEl.textContent = text;
@@ -36,12 +82,20 @@ function renderSlide(idx) {
   }
   const s = slides[idx];
   const bullets = s.bullets.map((b, i) => `<li style="animation-delay:${i * 80}ms">${escapeHtml(b)}</li>`).join("");
+  const iconSlot = s.icon ? `<div class="slide-icon" data-icon="${escapeHtml(s.icon)}"></div>` : "";
   slideFrame.innerHTML = `
     <div class="slide entering">
-      <h2>${escapeHtml(s.titulo)}</h2>
+      <div class="slide-head">
+        ${iconSlot}
+        <h2>${escapeHtml(s.titulo)}</h2>
+      </div>
       ${bullets ? `<ul>${bullets}</ul>` : ""}
       <div class="slide-meta">${idx + 1} / ${slides.length}</div>
     </div>`;
+  if (s.icon) {
+    const slot = slideFrame.querySelector(".slide-icon");
+    if (slot) renderIconInto(slot, s.icon);
+  }
   activeSlideIdx = idx;
   renderStrip();
 }
@@ -103,23 +157,48 @@ function sendTranscript(text) {
   ws.send(JSON.stringify({ type: "transcript", text }));
 }
 
-async function loadTranscriber() {
-  setStatus("cargando whisper-large-v3-turbo…");
-  const { pipeline, env } = await import("https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.5/+esm");
-  env.allowLocalModels = false;
+let transformersMod;
+let moonshineMod;
+
+async function loadMoonshineTranscriber(modelId) {
+  // modelId looks like "moonshine:moonshine/base/es" → load from download.moonshine.ai
+  const variant = modelId.replace(/^moonshine:/, "");
+  const label = variant.replace(/^moonshine\//, "moonshine-").replace(/\//g, "-");
+  setStatus(`cargando ${label}…`);
+  if (!moonshineMod) {
+    moonshineMod = await import(
+      "https://cdn.jsdelivr.net/npm/@moonshine-ai/moonshine-js@latest/+esm"
+    );
+  }
+  const model = new moonshineMod.MoonshineModel(variant);
+  await model.loadModel();
+  transcriber = async (audio /*, opts */) => {
+    const text = await model.generate(audio);
+    return { text: typeof text === "string" ? text : text?.text || "" };
+  };
+  transcriber.__provider = "moonshine";
+  setStatus("listo", "");
+}
+
+async function loadTransformersTranscriber(modelId) {
+  setStatus(`cargando ${modelId.split("/").pop()}…`);
+  if (!transformersMod) {
+    transformersMod = await import(
+      "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.5/+esm"
+    );
+    transformersMod.env.allowLocalModels = false;
+  }
   const hasWebGPU = !!navigator.gpu;
   const device = hasWebGPU ? "webgpu" : "wasm";
-  setStatus(`cargando whisper-large-v3-turbo (${device}, primera vez ~200MB)…`);
-  transcriber = await pipeline(
+  const dtypeFn = MODEL_DTYPES[modelId] || (() => "q8");
+  const dtype = dtypeFn(hasWebGPU);
+  setStatus(`cargando ${modelId.split("/").pop()} (${device})…`);
+  const pipe = await transformersMod.pipeline(
     "automatic-speech-recognition",
-    "onnx-community/whisper-large-v3-turbo",
+    modelId,
     {
       device,
-      // Encoder en fp16 mantiene calidad acústica; decoder cuantizado q4 baja peso y acelera.
-      // En WASM (sin WebGPU) cae a q8 para no morir.
-      dtype: hasWebGPU
-        ? { encoder_model: "fp16", decoder_model_merged: "q4" }
-        : { encoder_model: "q8", decoder_model_merged: "q4" },
+      dtype,
       progress_callback: (p) => {
         if (p.status === "progress" && typeof p.progress === "number") {
           setStatus(`bajando ${p.file || "modelo"} ${Math.round(p.progress)}%`);
@@ -127,7 +206,52 @@ async function loadTranscriber() {
       },
     },
   );
+  transcriber = async (audio /*, _opts */) =>
+    pipe(audio, { language: "spanish", task: "transcribe" });
+  transcriber.__provider = "transformers";
   setStatus("listo", "");
+}
+
+async function loadTranscriber(modelId) {
+  modelId = modelId || modelSelect?.value || "onnx-community/whisper-large-v3-turbo";
+  if (modelId.startsWith("moonshine:")) {
+    await loadMoonshineTranscriber(modelId);
+  } else {
+    await loadTransformersTranscriber(modelId);
+  }
+}
+
+async function switchModel(modelId) {
+  if (!modelId || !transformersMod) return;
+  const wasRecording = isRecording;
+  if (wasRecording) {
+    vad?.pause();
+    isRecording = false;
+    startBtn.textContent = "empezar";
+    startBtn.classList.remove("recording");
+  }
+  startBtn.disabled = true;
+  transcriber = undefined;
+  try {
+    await loadTranscriber(modelId);
+    localStorage.setItem("dictado.model", modelId);
+  } catch (err) {
+    console.error("[switchModel]", err);
+    setStatus(`error cambiando modelo: ${err.message}`, "error");
+    return;
+  }
+  startBtn.disabled = false;
+  if (wasRecording) {
+    try {
+      await vad.start();
+      isRecording = true;
+      startBtn.textContent = "pausar";
+      startBtn.classList.add("recording");
+      setStatus("escuchando", "live");
+    } catch (err) {
+      setStatus(`error mic: ${err.message}`, "error");
+    }
+  }
 }
 
 // Custom energy-based VAD using an AudioWorklet. No ONNX, no model download,
@@ -285,22 +409,19 @@ function enqueueTranscribe(audio) {
   const next = transcribeChain.then(async () => {
     const energyDb = chunkEnergyDbfs(audio);
     if (energyDb < -45) {
-      console.log(`[whisper] skipping silent chunk (${energyDb.toFixed(1)} dBFS)`);
+      console.log(`[stt] skipping silent chunk (${energyDb.toFixed(1)} dBFS)`);
       return "";
     }
     try {
-      const result = await transcriber(audio, {
-        language: "spanish",
-        task: "transcribe",
-      });
+      const result = await transcriber(audio);
       const text = (result?.text || "").trim();
       if (looksLikeHallucination(text)) {
-        console.log(`[whisper] discarded hallucination: "${text}"`);
+        console.log(`[stt] discarded hallucination: "${text}"`);
         return "";
       }
       return text;
     } catch (err) {
-      console.error("[whisper]", err);
+      console.error("[stt]", err);
       return "";
     }
   });
@@ -326,6 +447,13 @@ async function loadVAD() {
 }
 
 async function init() {
+  // Restore previously selected model.
+  const savedModel = localStorage.getItem("dictado.model");
+  if (savedModel && [...modelSelect.options].some((o) => o.value === savedModel)) {
+    modelSelect.value = savedModel;
+  }
+  modelSelect.addEventListener("change", () => switchModel(modelSelect.value));
+
   try {
     await fetch("/api/reset", { method: "POST" }).catch(() => {});
     await connectWS();
@@ -335,7 +463,8 @@ async function init() {
     return;
   }
   try {
-    await loadVAD(); // sync now, no model download
+    await loadVAD(); // sync, no model download
+    await ensureLucide();
     await loadTranscriber();
   } catch (err) {
     console.error("[init]", err);
