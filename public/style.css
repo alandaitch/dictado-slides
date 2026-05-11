@@ -227,11 +227,12 @@ body {
   content: "";
   position: absolute;
   left: 0;
-  top: 0.6em;
-  width: 0.55em;
-  height: 0.16em;
-  border-radius: 99px;
+  top: 0.55em;
+  width: 0.42em;
+  height: 0.42em;
+  border-radius: 50%;
   background: var(--accent);
+  box-shadow: 0 2px 12px color-mix(in srgb, var(--accent) 35%, transparent);
 }
 @keyframes bulletIn {
   from { opacity: 0; transform: translateX(-12px); }
