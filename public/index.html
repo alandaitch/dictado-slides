@@ -32,6 +32,7 @@
           <option value="onnx-community/whisper-small">whisper-small · ~970MB · balance</option>
           <option value="onnx-community/whisper-base">whisper-base · ~280MB · rápido</option>
         </select>
+        <button id="instructionsBtn" class="btn btn-ghost" title="instrucciones personalizadas para el agente">📝</button>
         <label class="toggle" title="usar imágenes/memes (Frinkiac, Reddit, etc)">
           <input type="checkbox" id="imagesToggle" />
           <span>fotos</span>
@@ -52,6 +53,33 @@
         </div>
       </section>
     </main>
+
+    <!-- Custom instructions modal -->
+    <div id="instructionsModal" class="modal" hidden>
+      <div class="modal-backdrop" data-close></div>
+      <div class="modal-panel" role="dialog" aria-labelledby="instrTitle">
+        <header class="modal-head">
+          <h3 id="instrTitle">instrucciones para el agente</h3>
+          <button class="btn btn-ghost" data-close aria-label="cerrar">×</button>
+        </header>
+        <div class="modal-body">
+          <p class="instr-hint">contale al agente cómo querés que arme las slides. Se aplica a cada turno hasta que lo cambies.</p>
+          <textarea id="instructionsInput" rows="8" placeholder="ej: siempre buscá un meme o screencap de Los Simpsons. Sé exagerado con los chistes. Preferí slides cortas. Cuando hablo de política argentina, usá imágenes de r/argentina."></textarea>
+          <div class="instr-presets">
+            <span class="instr-presets-label">presets:</span>
+            <button class="btn btn-ghost btn-mini" data-preset="memes">memes y referencias pop</button>
+            <button class="btn btn-ghost btn-mini" data-preset="sober">sobrio / técnico</button>
+            <button class="btn btn-ghost btn-mini" data-preset="argentine">contexto argentino</button>
+            <button class="btn btn-ghost btn-mini" data-preset="clear">limpiar</button>
+          </div>
+        </div>
+        <footer class="modal-foot">
+          <div style="flex:1"></div>
+          <button class="btn btn-ghost" data-close>cancelar</button>
+          <button id="instructionsSave" class="btn btn-primary">guardar</button>
+        </footer>
+      </div>
+    </div>
 
     <!-- Custom theme editor modal -->
     <div id="themeModal" class="modal" hidden>

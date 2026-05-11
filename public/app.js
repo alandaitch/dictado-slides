@@ -13,6 +13,10 @@ function getImagesEnabled() {
   return imagesToggle.checked;
 }
 
+function getCustomInstructions() {
+  return localStorage.getItem("dictado.customInstructions") || "";
+}
+
 const PRESET_THEMES = ["default", "mono", "cyber", "sunset", "paper"];
 const ALL_PRESET_CLASSES = PRESET_THEMES.map((x) => `theme-${x}`);
 
@@ -256,6 +260,52 @@ function cachedImage(keyword, subreddit = "") {
   return imageCache.has(k) ? imageCache.get(k) : undefined;
 }
 
+// Append only the NEW bullets to the existing <ul> so previously rendered
+// content doesn't re-animate. Returns true if patching handled the update.
+function tryPatchExistingSlide(s, idx) {
+  const slideEl = slideFrame.querySelector(".slide");
+  if (!slideEl || slideEl.dataset.slideId !== s.id) return false;
+  // Bail to full re-render if any non-bullet attribute changed.
+  if (slideEl.dataset.slideIcon !== (s.icon || "") || slideEl.dataset.slideImagen !== (s.imagen || "") || slideEl.dataset.slideLayout !== (s.layout || "bullets")) {
+    return false;
+  }
+  const ul = slideEl.querySelector("ul");
+  const renderedCount = ul ? ul.children.length : 0;
+  const targetCount = (s.bullets || []).length;
+  if (targetCount <= renderedCount) {
+    // Same or fewer bullets — nothing to do (edits to existing bullets aren't
+    // supported by the agent today; if that changes we'd diff text here).
+    const meta = slideEl.querySelector(".slide-meta");
+    if (meta) meta.textContent = `${idx + 1} / ${slides.length}`;
+    return true;
+  }
+  // We have new bullets to append. If no <ul> exists yet (layout had no
+  // bullets initially), create one inside the right wrapper.
+  let mountedUl = ul;
+  if (!mountedUl) {
+    const host =
+      slideEl.querySelector(".bullets-content") ||
+      slideEl.querySelector(".photo-content") ||
+      slideEl.querySelector(".stat-side");
+    if (!host) return false;
+    mountedUl = document.createElement("ul");
+    if (slideEl.classList.contains("layout-stat")) mountedUl.className = "stat-context";
+    host.appendChild(mountedUl);
+  }
+  const newOnes = s.bullets.slice(renderedCount);
+  for (let i = 0; i < newOnes.length; i++) {
+    const li = document.createElement("li");
+    li.textContent = newOnes[i];
+    li.style.animationDelay = `${i * 80}ms`;
+    li.classList.add("appended");
+    mountedUl.appendChild(li);
+  }
+  slideEl.dataset.bulletCount = String(targetCount);
+  const meta = slideEl.querySelector(".slide-meta");
+  if (meta) meta.textContent = `${idx + 1} / ${slides.length}`;
+  return true;
+}
+
 function renderSlide(idx) {
   if (idx < 0 || idx >= slides.length) {
     slideFrame.innerHTML = `
@@ -266,7 +316,22 @@ function renderSlide(idx) {
     return;
   }
   const s = slides[idx];
+
+  // Try patch-only update first (saves re-animating the whole slide).
+  if (activeSlideIdx === idx && tryPatchExistingSlide(s, idx)) {
+    renderStrip();
+    return;
+  }
+
   slideFrame.innerHTML = renderLayoutHTML(s, idx);
+  const slideEl = slideFrame.querySelector(".slide");
+  if (slideEl) {
+    slideEl.dataset.slideId = s.id;
+    slideEl.dataset.slideIcon = s.icon || "";
+    slideEl.dataset.slideImagen = s.imagen || "";
+    slideEl.dataset.slideLayout = s.layout || "bullets";
+    slideEl.dataset.bulletCount = String((s.bullets || []).length);
+  }
   for (const slot of slideFrame.querySelectorAll("[data-icon]")) {
     const name = slot.dataset.icon;
     if (name) renderIconInto(slot, name);
@@ -475,7 +540,12 @@ function connectWS() {
 
 function sendTranscript(text) {
   if (!ws || ws.readyState !== WebSocket.OPEN) return;
-  ws.send(JSON.stringify({ type: "transcript", text, imagesEnabled: getImagesEnabled() }));
+  ws.send(JSON.stringify({
+    type: "transcript",
+    text,
+    imagesEnabled: getImagesEnabled(),
+    customInstructions: getCustomInstructions(),
+  }));
 }
 
 let transformersMod;
@@ -767,6 +837,48 @@ async function loadVAD() {
   // Don't request mic yet — only when user clicks "empezar".
 }
 
+// ---------- Custom instructions modal ----------
+const INSTR_PRESETS = {
+  memes:
+    "Sé GENEROSO con el campo `imagen` — buscá memes, screencaps de los Simpsons, Futurama o de Reddit cada vez que el contenido tenga la mínima referencia pop, humor, política, viralidad o tono emocional. Preferí layout 'photo' cuando uses imagen.",
+  sober:
+    "NO uses el campo `imagen` salvo que el orador EXPLÍCITAMENTE pida una imagen. Mantené las slides limpias y profesionales, solo iconos Lucide.",
+  argentine:
+    "El orador es argentino y habla sobre política, tech y cultura argentina. Para imágenes, priorizá subreddit 'argentina' o 'RepublicaArgentina'. Reconocé referencias locales (Milei, dólar, AFIP, asado, etc.) y agregales imágenes apropiadas.",
+  clear: "",
+};
+
+const instructionsModal = document.getElementById("instructionsModal");
+const instructionsBtn = document.getElementById("instructionsBtn");
+const instructionsInput = document.getElementById("instructionsInput");
+const instructionsSave = document.getElementById("instructionsSave");
+
+function refreshInstructionsBadge() {
+  instructionsBtn.classList.toggle("has-instructions", !!getCustomInstructions().trim());
+}
+
+function openInstructionsEditor() {
+  instructionsInput.value = getCustomInstructions();
+  instructionsModal.hidden = false;
+  setTimeout(() => instructionsInput.focus(), 50);
+}
+function closeInstructionsEditor() { instructionsModal.hidden = true; }
+
+instructionsBtn.addEventListener("click", openInstructionsEditor);
+instructionsModal.addEventListener("click", (e) => {
+  if (e.target.dataset && e.target.dataset.close !== undefined) closeInstructionsEditor();
+  const preset = e.target.dataset?.preset;
+  if (preset && Object.hasOwn(INSTR_PRESETS, preset)) {
+    instructionsInput.value = INSTR_PRESETS[preset];
+  }
+});
+instructionsSave.addEventListener("click", () => {
+  const v = instructionsInput.value.trim();
+  localStorage.setItem("dictado.customInstructions", v);
+  refreshInstructionsBadge();
+  closeInstructionsEditor();
+});
+
 // ---------- Theme modal (custom-theme editor) ----------
 const themeModal = document.getElementById("themeModal");
 const themeNameInput = document.getElementById("themeName");
@@ -917,6 +1029,7 @@ async function init() {
 
   // Restore images toggle (default off — opt-in).
   imagesToggle.checked = localStorage.getItem("dictado.images") === "1";
+  refreshInstructionsBadge();
   imagesToggle.addEventListener("change", () => {
     localStorage.setItem("dictado.images", imagesToggle.checked ? "1" : "0");
     if (activeSlideIdx >= 0) renderSlide(activeSlideIdx);

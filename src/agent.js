@@ -149,16 +149,19 @@ function describeCurrentSlide(slide) {
   return `Slide actual #${slide.index + 1}\nTítulo: ${slide.titulo}\nBullets:\n${bullets}\n(${slide.bullets.length}/5 bullets)`;
 }
 
-export async function runTurn({ transcript, currentSlide, history = [], imagesEnabled = true }) {
+export async function runTurn({ transcript, currentSlide, history = [], imagesEnabled = true, customInstructions = "" }) {
   const model = await getModel();
   const flags = imagesEnabled
-    ? "IMÁGENES habilitadas — podés usar el campo `imagen` cuando sirva."
-    : "IMÁGENES deshabilitadas — NO uses el campo `imagen` bajo ningún concepto. Usá solo icon.";
+    ? "IMÁGENES habilitadas — sé GENEROSO con el campo imagen. Cualquier idea con cuerpo visual, humor, referencia pop, política, cultura o emoción merece imagen. Default: si la transcripción tiene algo más que datos secos, buscá imagen. Para imagen usá layout 'photo'."
+    : "IMÁGENES deshabilitadas — NO uses el campo imagen bajo ningún concepto. Usá solo icon.";
+  const customBlock = customInstructions.trim()
+    ? `\n\nINSTRUCCIONES PERSONALIZADAS DEL USUARIO (priorizalas sobre defaults):\n${customInstructions.trim()}\n`
+    : "";
   const messages = [
     ...history,
     {
       role: "user",
-      content: `${flags}\n\n${describeCurrentSlide(currentSlide)}\n\n--- TRANSCRIPCIÓN NUEVA ---\n${transcript}\n\nDecidí qué hacer.`,
+      content: `${flags}${customBlock}\n\n${describeCurrentSlide(currentSlide)}\n\n--- TRANSCRIPCIÓN NUEVA ---\n${transcript}\n\nDecidí qué hacer.`,
     },
   ];
 

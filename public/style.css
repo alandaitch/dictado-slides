@@ -208,6 +208,29 @@ body {
   color: var(--fg);
 }
 .theme-field input[type="text"]:focus { outline: none; border-color: var(--accent); }
+
+.instr-hint { font-size: 13px; color: var(--fg-dim); line-height: 1.4; }
+#instructionsInput {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-family: inherit;
+  font-size: 14px;
+  color: var(--fg);
+  resize: vertical;
+  line-height: 1.45;
+}
+#instructionsInput:focus { outline: none; border-color: var(--accent); }
+.instr-presets { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.instr-presets-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--fg-dim); margin-right: 4px; }
+.btn-mini { font-size: 11px; padding: 5px 10px; }
+
+#instructionsBtn.has-instructions {
+  border-color: color-mix(in srgb, var(--accent) 50%, var(--border));
+  color: var(--accent);
+}
 .theme-colors { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
 .color-field { display: flex; flex-direction: column; gap: 6px; align-items: center; }
 .color-field input[type="color"] {

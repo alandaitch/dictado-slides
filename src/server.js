@@ -147,7 +147,7 @@ async function processTranscript(wss, transcript, opts = {}) {
   }
   state.isProcessing = true;
   broadcast(wss, { type: "agent:thinking", on: true });
-  console.log(`[transcript] ${transcript} (images=${opts.imagesEnabled ? "on" : "off"})`);
+  console.log(`[transcript] ${transcript} (images=${opts.imagesEnabled ? "on" : "off"}${opts.customInstructions ? ", custom-instr" : ""})`);
   try {
     const t0 = Date.now();
     const { calls } = await runTurn({
@@ -155,6 +155,7 @@ async function processTranscript(wss, transcript, opts = {}) {
       currentSlide: currentSlide(),
       history: state.history,
       imagesEnabled: opts.imagesEnabled !== false,
+      customInstructions: opts.customInstructions || "",
     });
     console.log(`[agent] ${Date.now() - t0}ms — ${calls.map((c) => c.name).join(",") || "no-calls"}`);
     for (const call of calls) {
@@ -239,8 +240,11 @@ function buildApp(wss) {
     const text = String(req.body?.text || "").trim();
     if (!text) return res.status(400).json({ ok: false, error: "empty" });
     const imagesEnabled = req.body?.imagesEnabled !== false;
+    const customInstructions = typeof req.body?.customInstructions === "string"
+      ? req.body.customInstructions.slice(0, 2000)
+      : "";
     res.json({ ok: true });
-    processTranscript(wss, text, { imagesEnabled });
+    processTranscript(wss, text, { imagesEnabled, customInstructions });
   });
 
   app.post("/api/reset", (_req, res) => {
@@ -271,7 +275,10 @@ export function startServer({ port = PORT } = {}) {
         return;
       }
       if (msg?.type === "transcript" && typeof msg.text === "string") {
-        processTranscript(wss, msg.text.trim(), { imagesEnabled: msg.imagesEnabled !== false });
+        processTranscript(wss, msg.text.trim(), {
+          imagesEnabled: msg.imagesEnabled !== false,
+          customInstructions: typeof msg.customInstructions === "string" ? msg.customInstructions.slice(0, 2000) : "",
+        });
       } else if (msg?.type === "reset") {
         resetState(wss);
       }
