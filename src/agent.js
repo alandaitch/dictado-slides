@@ -42,48 +42,58 @@ REGLAS:
 
 CONTEXTO: vas a recibir la transcripción nueva (lo que se acaba de decir) y la slide actual. La transcripción puede venir cortada en mitad de oración porque procesamos en chunks de pocos segundos. Si dudás de si una idea es real o inferida, esperá.
 
-ICONOS (Lucide, kebab-case): SIEMPRE incluí un icono al crear una slide. Elegí el que mejor represente el tema. Ejemplos típicos:
-- ideas/concepto: lightbulb, brain, sparkles, eye, zap, star
-- crecimiento/métricas: trending-up, trending-down, chart-bar, chart-line, chart-pie, activity, target
-- gente/equipo: users, user, user-check, smile, handshake
-- tech: cpu, code, terminal, database, cloud, smartphone, laptop, bot, network
-- plata: dollar-sign, banknote, coins, percent, calculator, piggy-bank, credit-card
-- tiempo: clock, calendar, hourglass, timer, fast-forward
-- comunicación: message-square, mail, phone, megaphone, mic, video, headphones
-- proceso/herramientas: settings, wrench, hammer, key, lock, refresh-cw, workflow
-- educación/conocimiento: book, book-open, graduation-cap, file-text, folder
-- alerta/info: alert-triangle, info, help-circle, shield, ban
+ICONOS (Lucide): SIEMPRE incluí un icono al crear una slide. Tenés ~1500 a disposición, el frontend hace fuzzy match así que cualquier nombre razonable en inglés kebab-case se resuelve. Ejemplos de anclas semánticas:
+- ideas: lightbulb, brain, sparkles, zap, star, eye
+- crecimiento/datos: trending-up, trending-down, chart-bar, chart-line, chart-pie, activity, target
+- gente: users, user-check, handshake, smile
+- tech: cpu, code, terminal, database, cloud, bot, network, smartphone
+- plata: dollar-sign, banknote, coins, percent, piggy-bank
+- tiempo: clock, calendar, hourglass, timer
+- comunicación: message-square, mail, megaphone, mic, video
+- proceso: settings, wrench, key, lock, workflow, refresh-cw
+- conocimiento: book-open, graduation-cap, file-text
+- alerta: alert-triangle, info, shield
 - creatividad: palette, paintbrush, music, film, image, camera
-- objetivos: flag, trophy, medal, crown, rocket, mountain
-- problemas/soluciones: bug, x-circle, check-circle, fire, life-buoy
-Si no encontrás uno perfecto, elegí el más cercano (lucide tiene 1500+, los nombres son intuitivos en inglés).`;
+- objetivos: flag, trophy, rocket, mountain, crown
+- problemas: bug, x-circle, life-buoy
+
+LAYOUTS — elegí el que mejor sirva al contenido:
+- **bullets** (default): 2-5 ideas que desarrollar el mismo tema.
+- **cover**: introducción de sección o capítulo. Solo el título potente y opcionalmente un subtítulo corto en bullets[0]. Bullets vacío = solo título gigante.
+- **stat**: la idea principal es UNA CIFRA. bullets[0] DEBE ser una métrica CORTA de máximo 8 caracteres. Válidos: "20M", "$20M", "+340%", "150K", "8×", "99.9%", "1/3", "$2B". NO uses "20 millones de dólares" — eso va en titulo. titulo = qué describe esa cifra ("dólares levantados", "más rápido", "del equipo"). bullets[1+] = contexto adicional opcional.
+- **quote**: cita textual de alguien. titulo = quién dice la cita. bullets[0] = la cita exacta. Solo usar cuando el orador EXPLÍCITAMENTE cita a alguien.
+- **split**: contraste de dos ideas. bullets[0] = lado izquierdo, bullets[1] = lado derecho. Ej: "antes vs ahora", "problema vs solución".`;
+
+const LAYOUTS = ["bullets", "cover", "stat", "quote", "split"];
 
 const tools = {
   nueva_slide: tool({
     description:
-      "Crear una nueva slide con título, bullets iniciales y un icono semántico. Usar cuando hay un cambio claro de tema.",
+      "Crear una nueva slide con título, bullets, icono y layout. Usar cuando hay un cambio claro de tema.",
     inputSchema: z.object({
       titulo: z.string().min(1).max(80),
-      bullets: z.array(z.string().min(1).max(140)).min(0).max(5),
+      bullets: z.array(z.string().min(1).max(160)).min(0).max(5),
       icon: z
         .string()
         .max(40)
         .describe(
-          "Nombre de un icono Lucide en kebab-case que represente visualmente el tema de la slide. Ej: rocket, brain, chart-bar, dollar-sign, lightbulb, users, target.",
+          "Nombre de un icono Lucide (kebab-case). Tenés ~1500 a disposición — elegí libremente en inglés. Si dudás, alguno de: rocket, brain, lightbulb, chart-bar, dollar-sign, users, target, sparkles, zap, trending-up, message-square, code, book-open, clock, flag, trophy.",
+        ),
+      layout: z
+        .enum(LAYOUTS)
+        .describe(
+          "Layout de la slide. 'bullets' (default) cuando hay 2-5 ideas. 'cover' para introducir sección/capítulo (solo título grande, opcionalmente bullets[0] como subtítulo). 'stat' cuando lo principal es una CIFRA (bullets[0]='20M', titulo='dólares levantados'). 'quote' para cita textual (titulo=autor, bullets[0]=la cita). 'split' para contraste/comparación de dos ideas (bullets[0] y bullets[1] = los dos lados).",
         ),
     }),
     execute: async (args) => ({ ok: true, ...args }),
   }),
   agregar_bullet: tool({
     description:
-      "Agregar uno o varios bullets a la slide actual. Usar cuando la persona sigue desarrollando el mismo tema. Podés actualizar el icono si la nueva info lo justifica.",
+      "Agregar uno o varios bullets a la slide actual. Usar cuando la persona sigue desarrollando el mismo tema. Opcionalmente actualizar icono o layout.",
     inputSchema: z.object({
-      bullets: z.array(z.string().min(1).max(140)).min(1).max(3),
-      icon: z
-        .string()
-        .max(40)
-        .optional()
-        .describe("Opcional: nuevo nombre de icono Lucide si el tema mutó."),
+      bullets: z.array(z.string().min(1).max(160)).min(1).max(3),
+      icon: z.string().max(40).optional(),
+      layout: z.enum(LAYOUTS).optional(),
     }),
     execute: async (args) => ({ ok: true, ...args }),
   }),

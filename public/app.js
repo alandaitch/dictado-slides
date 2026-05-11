@@ -35,22 +35,55 @@ function kebabToPascal(name) {
     .join("");
 }
 
+let lucideKeys = []; // PascalCase, cached after load
+
 async function ensureLucide() {
   if (lucideMod) return lucideMod;
   lucideMod = await import("https://cdn.jsdelivr.net/npm/lucide@0.469.0/+esm");
+  lucideKeys = Object.keys(lucideMod.icons || {});
   return lucideMod;
+}
+
+// Look up an icon by an arbitrary string from the agent. Strategy:
+// 1) Exact PascalCase from kebab-case input
+// 2) Find icons containing ALL tokens (case-insensitive substring)
+// 3) Find icons containing ANY token
+// Among multiple candidates, prefer shortest name (more "canonical").
+function findLucideIcon(name) {
+  if (!name || !lucideMod) return null;
+  const exact = lucideMod.icons[kebabToPascal(name)];
+  if (exact) return exact;
+  const tokens = name
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((t) => t.length >= 3);
+  if (!tokens.length) return null;
+  const lowerKeys = lucideKeys.map((k) => [k, k.toLowerCase()]);
+  const allMatch = [];
+  const anyMatch = [];
+  for (const [k, lk] of lowerKeys) {
+    const matched = tokens.filter((t) => lk.includes(t)).length;
+    if (matched === tokens.length) allMatch.push({ k, len: k.length });
+    else if (matched > 0) anyMatch.push({ k, len: k.length, matched });
+  }
+  if (allMatch.length) {
+    allMatch.sort((a, b) => a.len - b.len);
+    return lucideMod.icons[allMatch[0].k];
+  }
+  if (anyMatch.length) {
+    anyMatch.sort((a, b) => b.matched - a.matched || a.len - b.len);
+    return lucideMod.icons[anyMatch[0].k];
+  }
+  return null;
 }
 
 function renderIconInto(el, iconName) {
   if (!el || !iconName || !lucideMod) return;
-  const key = kebabToPascal(iconName);
-  const data = lucideMod.icons?.[key];
+  const data = findLucideIcon(iconName);
   if (!data) {
     el.innerHTML = "";
     return;
   }
-  // lucide icon shape: [tag, attrs, children]
-  // We just call createElement directly via the module's helper.
   try {
     const svg = lucideMod.createElement(data);
     el.innerHTML = "";
@@ -81,23 +114,103 @@ function renderSlide(idx) {
     return;
   }
   const s = slides[idx];
-  const bullets = s.bullets.map((b, i) => `<li style="animation-delay:${i * 80}ms">${escapeHtml(b)}</li>`).join("");
-  const iconSlot = s.icon ? `<div class="slide-icon" data-icon="${escapeHtml(s.icon)}"></div>` : "";
-  slideFrame.innerHTML = `
-    <div class="slide entering">
-      <div class="slide-head">
-        ${iconSlot}
-        <h2>${escapeHtml(s.titulo)}</h2>
-      </div>
-      ${bullets ? `<ul>${bullets}</ul>` : ""}
-      <div class="slide-meta">${idx + 1} / ${slides.length}</div>
-    </div>`;
-  if (s.icon) {
-    const slot = slideFrame.querySelector(".slide-icon");
-    if (slot) renderIconInto(slot, s.icon);
+  slideFrame.innerHTML = renderLayoutHTML(s, idx);
+  for (const slot of slideFrame.querySelectorAll("[data-icon]")) {
+    const name = slot.dataset.icon;
+    if (name) renderIconInto(slot, name);
   }
   activeSlideIdx = idx;
   renderStrip();
+}
+
+function splitTitleForSplitLayout(t) {
+  // Split "X vs Y" / "antes y ahora" into two labels. Falls back gracefully.
+  const m = t.match(/^(.+?)\s+(?:vs|versus|v\/s|y|contra|frente a)\s+(.+)$/i);
+  if (m) return [m[1].trim(), m[2].trim()];
+  // Fallback: use title as the header for both sides.
+  return [t, ""];
+}
+
+function renderLayoutHTML(s, idx) {
+  const layout = s.layout || "bullets";
+  const t = escapeHtml(s.titulo || "");
+  const b = (s.bullets || []).map(escapeHtml);
+  const icon = s.icon ? escapeHtml(s.icon) : "";
+  const meta = `<div class="slide-meta">${idx + 1} / ${slides.length}</div>`;
+
+  if (layout === "cover") {
+    const subtitle = b[0] ? `<div class="cover-subtitle">${b[0]}</div>` : "";
+    const iconSlot = icon ? `<div class="cover-icon" data-icon="${icon}"></div>` : "";
+    return `<div class="slide entering layout-cover">
+      ${iconSlot}
+      <h2>${t}</h2>
+      ${subtitle}
+      ${meta}
+    </div>`;
+  }
+
+  if (layout === "stat") {
+    const num = b[0] || "?";
+    const rest = b.slice(1);
+    const restList = rest.length
+      ? `<ul class="stat-context">${rest.map((x, i) => `<li style="animation-delay:${i * 80}ms">${x}</li>`).join("")}</ul>`
+      : "";
+    const iconSlot = icon ? `<div class="stat-icon" data-icon="${icon}"></div>` : "";
+    // Auto-shrink for long stat strings. Up to ~6 chars get the full XL size.
+    const lenClass =
+      num.length <= 4 ? "len-xs" : num.length <= 7 ? "len-sm" : num.length <= 12 ? "len-md" : "len-lg";
+    return `<div class="slide entering layout-stat">
+      <div class="stat-num ${lenClass}">${escapeHtml(num)}</div>
+      <div class="stat-side">
+        ${iconSlot}
+        <h2>${t}</h2>
+        ${restList}
+      </div>
+      ${meta}
+    </div>`;
+  }
+
+  if (layout === "quote") {
+    const quote = b[0] || t;
+    const attr = b[0] ? t : "";
+    return `<div class="slide entering layout-quote">
+      <div class="quote-mark" data-icon="quote"></div>
+      <p class="quote-text">${quote}</p>
+      ${attr ? `<div class="quote-attr">— ${attr}</div>` : ""}
+      ${meta}
+    </div>`;
+  }
+
+  if (layout === "split") {
+    const [leftLabel, rightLabel] = splitTitleForSplitLayout(s.titulo || "");
+    const left = b[0] || "";
+    const right = b[1] || "";
+    const iconSlot = icon ? `<div class="split-icon" data-icon="${icon}"></div>` : "";
+    return `<div class="slide entering layout-split">
+      <div class="split-side">
+        ${leftLabel ? `<div class="split-label">${escapeHtml(leftLabel)}</div>` : ""}
+        <div class="split-text">${left}</div>
+      </div>
+      <div class="split-divider">${iconSlot}</div>
+      <div class="split-side">
+        ${rightLabel ? `<div class="split-label">${escapeHtml(rightLabel)}</div>` : ""}
+        <div class="split-text">${right}</div>
+      </div>
+      ${meta}
+    </div>`;
+  }
+
+  // Default: bullets — title + bullets on left, big icon on right.
+  const bullets = b.map((x, i) => `<li style="animation-delay:${i * 80}ms">${x}</li>`).join("");
+  const iconSlot = icon ? `<div class="bullets-icon" data-icon="${icon}"></div>` : "";
+  return `<div class="slide entering layout-bullets">
+    <div class="bullets-content">
+      <h2>${t}</h2>
+      ${bullets ? `<ul>${bullets}</ul>` : ""}
+    </div>
+    ${iconSlot}
+    ${meta}
+  </div>`;
 }
 
 function renderStrip() {

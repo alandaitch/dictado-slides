@@ -30,6 +30,11 @@ function broadcast(wss, msg) {
   }
 }
 
+const VALID_LAYOUTS = new Set(["bullets", "cover", "stat", "quote", "split"]);
+function sanitizeLayout(value) {
+  return VALID_LAYOUTS.has(value) ? value : "bullets";
+}
+
 function applyToolCall(call) {
   if (call.name === "nueva_slide") {
     const slide = {
@@ -37,6 +42,7 @@ function applyToolCall(call) {
       titulo: call.args.titulo,
       bullets: Array.isArray(call.args.bullets) ? call.args.bullets : [],
       icon: typeof call.args.icon === "string" ? call.args.icon.trim() : "",
+      layout: sanitizeLayout(call.args.layout),
       createdAt: Date.now(),
     };
     state.slides.push(slide);
@@ -50,6 +56,9 @@ function applyToolCall(call) {
     slide.bullets = [...slide.bullets, ...incoming].slice(0, 5);
     if (typeof call.args.icon === "string" && call.args.icon.trim()) {
       slide.icon = call.args.icon.trim();
+    }
+    if (typeof call.args.layout === "string" && VALID_LAYOUTS.has(call.args.layout)) {
+      slide.layout = call.args.layout;
     }
     return { type: "slide:update", slide, index: i, total: state.slides.length };
   }
