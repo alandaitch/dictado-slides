@@ -13,6 +13,13 @@ const settingsBtn = document.getElementById("settingsBtn");
 const settingsPanel = document.getElementById("settingsPanel");
 const rateSlider = document.getElementById("rateSlider");
 const rateLabel = document.getElementById("rateLabel");
+const themeTrigger = document.getElementById("themeTrigger");
+const themePicker = document.getElementById("themePicker");
+const themeNameLabel = document.getElementById("themeNameLabel");
+const themeSwatchesEl = document.getElementById("themeSwatches");
+const instructionsPreview = document.getElementById("instructionsPreview");
+
+const RATE_LABELS = { 1: "lento", 2: "medio-lento", 3: "medio-rápido", 4: "rápido" };
 
 function getImagesEnabled() {
   return imagesToggle.checked;
@@ -23,7 +30,7 @@ function getMode() {
 }
 
 function getRate() {
-  return Number(rateSlider?.value || 6);
+  return Number(rateSlider?.value || 4);
 }
 
 function getCustomInstructions() {
@@ -32,6 +39,36 @@ function getCustomInstructions() {
 
 const PRESET_THEMES = ["default", "mono", "cyber", "sunset", "paper"];
 const ALL_PRESET_CLASSES = PRESET_THEMES.map((x) => `theme-${x}`);
+
+// 4 swatches per preset theme: accent, accent-2, bg-2 (panel/canvas), fg (text)
+// These match the values in style.css's body.theme-* classes.
+const PRESET_SWATCHES = {
+  default: ["#f97316", "#fbbf24", "#131318", "#f5f5f7"],
+  mono: ["#ffffff", "#888888", "#0a0a0a", "#ffffff"],
+  cyber: ["#00ff9d", "#5dffd9", "#0a1414", "#d4f4dd"],
+  sunset: ["#ff6b9d", "#ffd166", "#2a103f", "#fef3e8"],
+  paper: ["#d4541a", "#f59e0b", "#ffffff", "#1a1a1a"],
+};
+
+function themeSwatchesHTML(id) {
+  if (PRESET_THEMES.includes(id)) {
+    return PRESET_SWATCHES[id]
+      .map((c) => `<span style="background:${c}"></span>`)
+      .join("");
+  }
+  // Custom theme: derive 4 swatches from its colors.
+  const t = loadCustomThemes().find((x) => x.id === id);
+  if (!t) return "";
+  return [t.colors.accent, t.colors.accent2, t.colors.bg, t.colors.fg]
+    .map((c) => `<span style="background:${c}"></span>`)
+    .join("");
+}
+
+function themeDisplayName(id) {
+  if (PRESET_THEMES.includes(id)) return id;
+  const t = loadCustomThemes().find((x) => x.id === id);
+  return t ? t.name : id;
+}
 
 // ---------- Color helpers (no library) ----------
 function hexToRgb(hex) {
@@ -888,7 +925,12 @@ const instructionsInput = document.getElementById("instructionsInput");
 const instructionsSave = document.getElementById("instructionsSave");
 
 function refreshInstructionsBadge() {
-  instructionsBtn.classList.toggle("has-instructions", !!getCustomInstructions().trim());
+  const text = getCustomInstructions().trim();
+  instructionsBtn.classList.toggle("has-instructions", !!text);
+  instructionsBtn.classList.toggle("has-text", !!text);
+  if (instructionsPreview) {
+    instructionsPreview.textContent = text || "sin instrucciones — usá los defaults";
+  }
 }
 
 function openInstructionsEditor() {
@@ -994,9 +1036,10 @@ themeSaveBtn.addEventListener("click", () => {
   }
   saveCustomThemes(customs);
   rebuildCustomGroup();
-  themeSelect.value = editingId;
-  const applied = applyTheme(customs.find((t) => t.id === editingId));
+  if (themeSelect) themeSelect.value = editingId;
+  applyTheme(customs.find((t) => t.id === editingId));
   localStorage.setItem("dictado.theme", editingId);
+  refreshThemeTrigger();
   closeThemeEditor();
 });
 
@@ -1007,9 +1050,10 @@ themeDeleteBtn.addEventListener("click", () => {
   if (localStorage.getItem("dictado.theme") === editingId) {
     localStorage.setItem("dictado.theme", "default");
     applyTheme("default");
-    themeSelect.value = "default";
+    if (themeSelect) themeSelect.value = "default";
   }
   rebuildCustomGroup();
+  refreshThemeTrigger();
   closeThemeEditor();
 });
 
@@ -1021,36 +1065,92 @@ function rebuildCustomGroup() {
     opt.textContent = `tema · ${t.name}`;
     customGroup.appendChild(opt);
   }
+  rebuildThemePicker();
+}
+
+function rebuildThemePicker() {
+  if (!themePicker) return;
+  const currentId = localStorage.getItem("dictado.theme") || "default";
+  const opts = [
+    ...PRESET_THEMES.map((id) => ({ id, name: id, isCustom: false })),
+    ...loadCustomThemes().map((t) => ({ id: t.id, name: t.name, isCustom: true })),
+  ];
+  themePicker.innerHTML = "";
+  for (const o of opts) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "theme-option" + (o.id === currentId ? " active" : "");
+    btn.dataset.themeId = o.id;
+    btn.innerHTML = `<span class="theme-name">${escapeHtml(o.name)}</span><span class="theme-swatches">${themeSwatchesHTML(o.id)}</span>`;
+    themePicker.appendChild(btn);
+  }
+  // "+ crear tema…" footer option
+  const create = document.createElement("button");
+  create.type = "button";
+  create.className = "theme-option create";
+  create.dataset.themeId = "__edit__";
+  create.innerHTML = `<span class="theme-name">+ crear tema…</span>`;
+  themePicker.appendChild(create);
+}
+
+function refreshThemeTrigger() {
+  const id = localStorage.getItem("dictado.theme") || "default";
+  if (themeNameLabel) themeNameLabel.textContent = themeDisplayName(id);
+  if (themeSwatchesEl) themeSwatchesEl.innerHTML = themeSwatchesHTML(id);
+}
+
+function selectTheme(themeId) {
+  if (themeId === "__edit__") {
+    openThemeEditor(null);
+    return;
+  }
+  const sp = findTheme(themeId) || "default";
+  applyTheme(sp);
+  const persistId = typeof sp === "string" ? sp : sp.id;
+  localStorage.setItem("dictado.theme", persistId);
+  if (themeSelect) themeSelect.value = persistId;
+  refreshThemeTrigger();
+  rebuildThemePicker();
 }
 
 async function init() {
   rebuildCustomGroup();
+  refreshThemeTrigger();
 
   // Restore theme (synchronous, before anything renders).
   const savedId = localStorage.getItem("dictado.theme") || "default";
   const spec = findTheme(savedId);
-  const appliedId = applyTheme(spec || "default");
-  themeSelect.value = spec ? savedId : "default";
+  applyTheme(spec || "default");
+  if (themeSelect) themeSelect.value = spec ? savedId : "default";
+  refreshThemeTrigger();
 
-  themeSelect.addEventListener("change", () => {
-    const v = themeSelect.value;
-    if (v === "__edit__") {
-      // Don't change theme — open editor for new theme.
-      themeSelect.value = localStorage.getItem("dictado.theme") || "default";
-      openThemeEditor(null);
-      return;
+  themeTrigger?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (themePicker.hidden) {
+      themePicker.hidden = false;
+      rebuildThemePicker();
+    } else {
+      themePicker.hidden = true;
     }
-    const sp = findTheme(v) || "default";
-    const id = applyTheme(sp);
-    localStorage.setItem("dictado.theme", typeof sp === "string" ? sp : sp.id);
   });
-
-  // Double-click on a custom theme to edit it.
-  themeSelect.addEventListener("dblclick", () => {
-    const v = themeSelect.value;
-    if (v.startsWith("custom-")) {
-      const t = loadCustomThemes().find((x) => x.id === v);
-      if (t) openThemeEditor(t);
+  themePicker?.addEventListener("click", (e) => {
+    const btn = e.target.closest(".theme-option");
+    if (!btn) return;
+    e.stopPropagation();
+    selectTheme(btn.dataset.themeId);
+    if (btn.dataset.themeId !== "__edit__") {
+      themePicker.hidden = true;
+    }
+  });
+  themePicker?.addEventListener("dblclick", (e) => {
+    const btn = e.target.closest(".theme-option");
+    const id = btn?.dataset?.themeId;
+    if (id && id.startsWith("custom-")) {
+      const t = loadCustomThemes().find((x) => x.id === id);
+      if (t) {
+        openThemeEditor(t);
+        themePicker.hidden = true;
+      }
     }
   });
 
@@ -1077,12 +1177,14 @@ async function init() {
     applyModeClass();
   });
 
-  // Restore rate slider.
-  const savedRate = Number(localStorage.getItem("dictado.rate") || 6);
-  rateSlider.value = String(Math.max(1, Math.min(10, savedRate)));
-  rateLabel.textContent = rateSlider.value;
+  // Restore rate slider (1-4, default 4 = current behavior).
+  const savedRate = Number(localStorage.getItem("dictado.rate") || 4);
+  const initRate = Math.max(1, Math.min(4, savedRate));
+  rateSlider.value = String(initRate);
+  rateLabel.textContent = RATE_LABELS[initRate];
   rateSlider.addEventListener("input", () => {
-    rateLabel.textContent = rateSlider.value;
+    const v = Number(rateSlider.value);
+    rateLabel.textContent = RATE_LABELS[v] || "";
     localStorage.setItem("dictado.rate", rateSlider.value);
   });
 
@@ -1101,11 +1203,21 @@ async function init() {
     else closeSettings();
   });
   document.addEventListener("click", (e) => {
+    // Close theme picker on outside click (must run before settings panel
+    // close so picker inside the panel still closes neatly).
+    if (themePicker && !themePicker.hidden) {
+      if (!themePicker.contains(e.target) && e.target !== themeTrigger) {
+        themePicker.hidden = true;
+      }
+    }
     if (settingsPanel.hidden) return;
     if (!settingsPanel.contains(e.target) && e.target !== settingsBtn) closeSettings();
   });
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && !settingsPanel.hidden) closeSettings();
+    if (e.key === "Escape") {
+      if (themePicker && !themePicker.hidden) themePicker.hidden = true;
+      else if (!settingsPanel.hidden) closeSettings();
+    }
   });
   imagesToggle.addEventListener("change", () => {
     localStorage.setItem("dictado.images", imagesToggle.checked ? "1" : "0");

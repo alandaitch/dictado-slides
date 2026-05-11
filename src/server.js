@@ -204,7 +204,7 @@ async function processTranscript(wss, transcript, opts = {}) {
   }
   state.isProcessing = true;
   broadcast(wss, { type: "agent:thinking", on: true });
-  console.log(`[transcript] ${transcript} (images=${opts.imagesEnabled ? "on" : "off"}, rate=${opts.rate || 6}${opts.customInstructions ? ", custom-instr" : ""})`);
+  console.log(`[transcript] ${transcript} (images=${opts.imagesEnabled ? "on" : "off"}, rate=${opts.rate || 4}/4${opts.customInstructions ? ", custom-instr" : ""})`);
   try {
     const t0 = Date.now();
     const { calls } = await runTurn({
@@ -213,7 +213,7 @@ async function processTranscript(wss, transcript, opts = {}) {
       history: state.history,
       imagesEnabled: opts.imagesEnabled !== false,
       customInstructions: opts.customInstructions || "",
-      rate: typeof opts.rate === "number" ? opts.rate : 6,
+      rate: typeof opts.rate === "number" ? opts.rate : 4,
     });
     console.log(`[agent] ${Date.now() - t0}ms — ${calls.map((c) => c.name).join(",") || "no-calls"}`);
     for (const call of calls) {
@@ -302,7 +302,7 @@ function buildApp(wss) {
     const customInstructions = typeof req.body?.customInstructions === "string"
       ? req.body.customInstructions.slice(0, 2000)
       : "";
-    const rate = typeof req.body?.rate === "number" ? Math.max(1, Math.min(10, req.body.rate)) : 6;
+    const rate = typeof req.body?.rate === "number" ? Math.max(1, Math.min(4, req.body.rate)) : 4;
     res.json({ ok: true });
     processTranscript(wss, text, { imagesEnabled, customInstructions, rate });
   });
@@ -338,7 +338,7 @@ export function startServer({ port = PORT } = {}) {
         processTranscript(wss, msg.text.trim(), {
           imagesEnabled: msg.imagesEnabled !== false,
           customInstructions: typeof msg.customInstructions === "string" ? msg.customInstructions.slice(0, 2000) : "",
-          rate: typeof msg.rate === "number" ? Math.max(1, Math.min(10, msg.rate)) : 6,
+          rate: typeof msg.rate === "number" ? Math.max(1, Math.min(4, msg.rate)) : 4,
         });
       } else if (msg?.type === "reset") {
         resetState(wss);

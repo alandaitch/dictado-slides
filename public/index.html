@@ -19,30 +19,50 @@
         <div class="settings-wrap">
           <button id="settingsBtn" class="btn btn-ghost" title="ajustes" aria-haspopup="true" aria-expanded="false">⚙ ajustes</button>
           <div id="settingsPanel" class="settings-panel" hidden>
-            <div class="setting-row">
-              <span class="setting-label">modo</span>
-              <select id="modeSelect" class="select setting-control">
-                <option value="bullets">bullets · texto + imagen</option>
-                <option value="show">show · solo título</option>
-              </select>
-            </div>
-            <div class="setting-row">
-              <span class="setting-label">fotos</span>
-              <label class="toggle setting-control" title="usar imágenes/memes (Frinkiac, Reddit, etc)">
-                <input type="checkbox" id="imagesToggle" />
-                <span>activadas</span>
-              </label>
-            </div>
-            <div class="setting-row">
-              <span class="setting-label">ritmo</span>
-              <div class="setting-control rate-control">
-                <input type="range" id="rateSlider" min="1" max="10" step="1" value="6" />
-                <span id="rateLabel" class="rate-label">6</span>
+            <div class="setting-group">
+              <div class="setting-row">
+                <span class="setting-label">modo</span>
+                <select id="modeSelect" class="select setting-control">
+                  <option value="bullets">bullets · texto + imagen</option>
+                  <option value="show">show · solo título</option>
+                </select>
               </div>
+              <div class="setting-hint">cómo se ven las slides en pantalla. <em>show</em> oculta los bullets para presentar más cinematográfico, sin perder el contenido.</div>
             </div>
-            <div class="setting-row">
-              <span class="setting-label">tema</span>
-              <select id="themeSelect" class="select setting-control">
+
+            <div class="setting-group">
+              <div class="setting-row">
+                <span class="setting-label">fotos</span>
+                <label class="toggle setting-control" title="usar imágenes/memes (Frinkiac, Reddit, etc)">
+                  <input type="checkbox" id="imagesToggle" />
+                  <span>activadas</span>
+                </label>
+              </div>
+              <div class="setting-hint">si está activado, el agente puede meter memes de los Simpsons, Futurama o de Reddit cuando la slide se beneficie. Si no, solo iconos.</div>
+            </div>
+
+            <div class="setting-group">
+              <div class="setting-row">
+                <span class="setting-label">ritmo</span>
+                <div class="setting-control rate-control">
+                  <input type="range" id="rateSlider" min="1" max="4" step="1" value="4" />
+                  <span id="rateLabel" class="rate-label">rápido</span>
+                </div>
+              </div>
+              <div class="setting-hint">qué tan seguido genera slide nueva. <em>lento</em> acumula muchos bullets, <em>rápido</em> hace una slide por idea.</div>
+            </div>
+
+            <div class="setting-group">
+              <div class="setting-row">
+                <span class="setting-label">tema</span>
+                <button id="themeTrigger" class="setting-control theme-trigger" type="button">
+                  <span class="theme-name" id="themeNameLabel">default</span>
+                  <span class="theme-swatches" id="themeSwatches"></span>
+                  <span class="theme-caret">▾</span>
+                </button>
+              </div>
+              <div class="setting-hint">paleta de colores. Hacé click para elegir o crear uno custom.</div>
+              <select id="themeSelect" hidden>
                 <optgroup label="presets" id="presetGroup">
                   <option value="default">default</option>
                   <option value="mono">mono</option>
@@ -53,18 +73,29 @@
                 <optgroup label="míos" id="customGroup"></optgroup>
                 <option value="__edit__">+ crear tema…</option>
               </select>
+              <div id="themePicker" class="theme-picker" hidden></div>
             </div>
-            <div class="setting-row">
-              <span class="setting-label">modelo STT</span>
-              <select id="modelSelect" class="select setting-control">
-                <option value="onnx-community/whisper-large-v3-turbo" selected>turbo · 1.3GB · alta calidad</option>
-                <option value="onnx-community/whisper-small">small · 970MB · balance</option>
-                <option value="onnx-community/whisper-base">base · 280MB · rápido</option>
-              </select>
+
+            <div class="setting-group">
+              <div class="setting-row">
+                <span class="setting-label">modelo STT</span>
+                <select id="modelSelect" class="select setting-control">
+                  <option value="onnx-community/whisper-large-v3-turbo" selected>turbo · 1.3GB · alta calidad</option>
+                  <option value="onnx-community/whisper-small">small · 970MB · balance</option>
+                  <option value="onnx-community/whisper-base">base · 280MB · rápido</option>
+                </select>
+              </div>
+              <div class="setting-hint">modelo de reconocimiento de voz que corre 100% en tu navegador. Más chico = más rápido pero confunde palabras.</div>
             </div>
-            <div class="setting-row">
-              <span class="setting-label">instrucciones</span>
-              <button id="instructionsBtn" class="btn btn-ghost setting-control" title="instrucciones personalizadas para el agente">editar…</button>
+
+            <div class="setting-group">
+              <div class="setting-row">
+                <span class="setting-label">instrucciones</span>
+                <button id="instructionsBtn" class="btn btn-ghost setting-control instr-trigger" title="instrucciones personalizadas para el agente">
+                  <span class="instr-preview" id="instructionsPreview">sin instrucciones — usá los defaults</span>
+                </button>
+              </div>
+              <div class="setting-hint">contale al agente cómo querés que arme las slides (ej. "siempre memes argentinos", "preferí slides cortas").</div>
             </div>
           </div>
         </div>
