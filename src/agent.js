@@ -172,11 +172,22 @@ function describeCurrentSlide(slide) {
   return `Slide actual #${slide.index + 1}\nTítulo: ${slide.titulo}\nBullets:\n${bullets}\n(${slide.bullets.length}/5 bullets)`;
 }
 
-export async function runTurn({ transcript, currentSlide, history = [], imagesEnabled = true, customInstructions = "" }) {
+function ritmoGuidance(rate) {
+  if (rate <= 3) {
+    return `RITMO LENTO (${rate}/10): podés acumular hasta 4-5 bullets en una slide antes de cambiar. Cambiá de slide solo en quiebres de tema MUY claros.`;
+  }
+  if (rate <= 7) {
+    return `RITMO NORMAL (${rate}/10): target 1-2 bullets por slide. Quiebre de tema, ángulo o ejemplo = nueva slide. "Por otro lado", "también", "además" → nueva.`;
+  }
+  return `RITMO RÁPIDO (${rate}/10): cada idea o sub-idea = SLIDE NUEVA. Máximo 1 bullet por slide. Cualquier cambio mínimo de foco = nueva_slide. Sin excepciones.`;
+}
+
+export async function runTurn({ transcript, currentSlide, history = [], imagesEnabled = true, customInstructions = "", rate = 6 }) {
   const model = await getModel();
   const flags = imagesEnabled
     ? "IMÁGENES habilitadas. PODÉS usar imagen cuando claramente la slide se beneficie (chiste, meme, referencia pop, analogía cultural, momento emocional fuerte). NO uses imagen para slides técnicas, expositivas, sobrias, o cuando solo querés ilustrar una idea genérica. Si el orador NO está haciendo una referencia pop específica, dejá la slide con solo icon — es mejor que una imagen forzada. NUNCA repitas el mismo keyword en slides consecutivas (el server rechaza duplicados de las últimas 6 slides)."
     : "IMÁGENES deshabilitadas — NO uses el campo imagen bajo ningún concepto.";
+  const rateBlock = `\n\n${ritmoGuidance(rate)}`;
   const customBlock = customInstructions.trim()
     ? `\n\nINSTRUCCIONES PERSONALIZADAS DEL USUARIO (priorizalas sobre defaults):\n${customInstructions.trim()}\n`
     : "";
@@ -184,7 +195,7 @@ export async function runTurn({ transcript, currentSlide, history = [], imagesEn
     ...history,
     {
       role: "user",
-      content: `${flags}${customBlock}\n\nEstado: ${describeCurrentSlide(currentSlide)}\n\nLo que el orador acaba de decir (entre comillas):\n"""\n${transcript}\n"""`,
+      content: `${flags}${rateBlock}${customBlock}\n\nEstado: ${describeCurrentSlide(currentSlide)}\n\nLo que el orador acaba de decir (entre comillas):\n"""\n${transcript}\n"""`,
     },
   ];
 

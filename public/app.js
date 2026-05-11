@@ -9,6 +9,10 @@ const modelSelect = document.getElementById("modelSelect");
 const themeSelect = document.getElementById("themeSelect");
 const imagesToggle = document.getElementById("imagesToggle");
 const modeSelect = document.getElementById("modeSelect");
+const settingsBtn = document.getElementById("settingsBtn");
+const settingsPanel = document.getElementById("settingsPanel");
+const rateSlider = document.getElementById("rateSlider");
+const rateLabel = document.getElementById("rateLabel");
 
 function getImagesEnabled() {
   return imagesToggle.checked;
@@ -16,6 +20,10 @@ function getImagesEnabled() {
 
 function getMode() {
   return modeSelect?.value || "bullets";
+}
+
+function getRate() {
+  return Number(rateSlider?.value || 6);
 }
 
 function getCustomInstructions() {
@@ -570,6 +578,7 @@ function sendTranscript(text) {
     text,
     imagesEnabled: getImagesEnabled(),
     customInstructions: getCustomInstructions(),
+    rate: getRate(),
   }));
 }
 
@@ -1056,7 +1065,7 @@ async function init() {
   imagesToggle.checked = localStorage.getItem("dictado.images") === "1";
   refreshInstructionsBadge();
 
-  // Restore mode — pure presentation toggle, no agent involvement.
+  // Restore mode — pure CSS toggle, no DOM rebuild, no animation replay.
   function applyModeClass() {
     document.body.classList.toggle("mode-show", modeSelect.value === "show");
   }
@@ -1066,7 +1075,37 @@ async function init() {
   modeSelect.addEventListener("change", () => {
     localStorage.setItem("dictado.mode", modeSelect.value);
     applyModeClass();
-    if (activeSlideIdx >= 0) renderSlide(activeSlideIdx);
+  });
+
+  // Restore rate slider.
+  const savedRate = Number(localStorage.getItem("dictado.rate") || 6);
+  rateSlider.value = String(Math.max(1, Math.min(10, savedRate)));
+  rateLabel.textContent = rateSlider.value;
+  rateSlider.addEventListener("input", () => {
+    rateLabel.textContent = rateSlider.value;
+    localStorage.setItem("dictado.rate", rateSlider.value);
+  });
+
+  // Settings panel open/close.
+  function closeSettings() {
+    settingsPanel.hidden = true;
+    settingsBtn.setAttribute("aria-expanded", "false");
+  }
+  function openSettings() {
+    settingsPanel.hidden = false;
+    settingsBtn.setAttribute("aria-expanded", "true");
+  }
+  settingsBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (settingsPanel.hidden) openSettings();
+    else closeSettings();
+  });
+  document.addEventListener("click", (e) => {
+    if (settingsPanel.hidden) return;
+    if (!settingsPanel.contains(e.target) && e.target !== settingsBtn) closeSettings();
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !settingsPanel.hidden) closeSettings();
   });
   imagesToggle.addEventListener("change", () => {
     localStorage.setItem("dictado.images", imagesToggle.checked ? "1" : "0");

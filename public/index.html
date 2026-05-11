@@ -16,31 +16,58 @@
         <span class="status-text" id="statusText">cargando modelo…</span>
       </div>
       <div class="controls">
-        <select id="themeSelect" class="select" title="tema visual">
-          <optgroup label="presets" id="presetGroup">
-            <option value="default">tema · default</option>
-            <option value="mono">tema · mono</option>
-            <option value="cyber">tema · cyber</option>
-            <option value="sunset">tema · sunset</option>
-            <option value="paper">tema · paper</option>
-          </optgroup>
-          <optgroup label="míos" id="customGroup"></optgroup>
-          <option value="__edit__">+ crear tema…</option>
-        </select>
-        <select id="modelSelect" class="select" title="modelo de transcripción">
-          <option value="onnx-community/whisper-large-v3-turbo" selected>whisper-turbo · ~1.3GB · mejor calidad</option>
-          <option value="onnx-community/whisper-small">whisper-small · ~970MB · balance</option>
-          <option value="onnx-community/whisper-base">whisper-base · ~280MB · rápido</option>
-        </select>
-        <button id="instructionsBtn" class="btn btn-ghost" title="instrucciones personalizadas para el agente">📝</button>
-        <select id="modeSelect" class="select" title="modo de presentación">
-          <option value="bullets">modo · bullets</option>
-          <option value="show">modo · show</option>
-        </select>
-        <label class="toggle" title="usar imágenes/memes (Frinkiac, Reddit, etc)">
-          <input type="checkbox" id="imagesToggle" />
-          <span>fotos</span>
-        </label>
+        <div class="settings-wrap">
+          <button id="settingsBtn" class="btn btn-ghost" title="ajustes" aria-haspopup="true" aria-expanded="false">⚙ ajustes</button>
+          <div id="settingsPanel" class="settings-panel" hidden>
+            <div class="setting-row">
+              <span class="setting-label">modo</span>
+              <select id="modeSelect" class="select setting-control">
+                <option value="bullets">bullets · texto + imagen</option>
+                <option value="show">show · solo título</option>
+              </select>
+            </div>
+            <div class="setting-row">
+              <span class="setting-label">fotos</span>
+              <label class="toggle setting-control" title="usar imágenes/memes (Frinkiac, Reddit, etc)">
+                <input type="checkbox" id="imagesToggle" />
+                <span>activadas</span>
+              </label>
+            </div>
+            <div class="setting-row">
+              <span class="setting-label">ritmo</span>
+              <div class="setting-control rate-control">
+                <input type="range" id="rateSlider" min="1" max="10" step="1" value="6" />
+                <span id="rateLabel" class="rate-label">6</span>
+              </div>
+            </div>
+            <div class="setting-row">
+              <span class="setting-label">tema</span>
+              <select id="themeSelect" class="select setting-control">
+                <optgroup label="presets" id="presetGroup">
+                  <option value="default">default</option>
+                  <option value="mono">mono</option>
+                  <option value="cyber">cyber</option>
+                  <option value="sunset">sunset</option>
+                  <option value="paper">paper</option>
+                </optgroup>
+                <optgroup label="míos" id="customGroup"></optgroup>
+                <option value="__edit__">+ crear tema…</option>
+              </select>
+            </div>
+            <div class="setting-row">
+              <span class="setting-label">modelo STT</span>
+              <select id="modelSelect" class="select setting-control">
+                <option value="onnx-community/whisper-large-v3-turbo" selected>turbo · 1.3GB · alta calidad</option>
+                <option value="onnx-community/whisper-small">small · 970MB · balance</option>
+                <option value="onnx-community/whisper-base">base · 280MB · rápido</option>
+              </select>
+            </div>
+            <div class="setting-row">
+              <span class="setting-label">instrucciones</span>
+              <button id="instructionsBtn" class="btn btn-ghost setting-control" title="instrucciones personalizadas para el agente">editar…</button>
+            </div>
+          </div>
+        </div>
         <button id="startBtn" class="btn btn-primary" disabled>empezar</button>
         <label class="btn btn-ghost" for="audioInput" id="uploadLabel" style="cursor:pointer">audio…</label>
         <input type="file" id="audioInput" accept="audio/*,video/*" style="display:none" />

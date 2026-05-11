@@ -74,6 +74,8 @@ body {
 }
 
 .topbar {
+  position: relative;
+  z-index: 50;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -175,6 +177,94 @@ body {
 .toggle:has(input:checked) {
   color: var(--fg);
   border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+}
+
+/* ---------- Settings dropdown panel ---------- */
+.settings-wrap { position: relative; }
+.settings-panel {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  width: 360px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 24px 60px -20px rgba(0,0,0,0.6);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  z-index: 60;
+  animation: settingsIn .18s cubic-bezier(.22,.61,.36,1);
+}
+.settings-panel[hidden] { display: none; }
+@keyframes settingsIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 4px;
+}
+.setting-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--fg-dim);
+  flex: 0 0 auto;
+  min-width: 88px;
+}
+.setting-control { flex: 1; min-width: 0; }
+.setting-control.select,
+.settings-panel .select { width: 100%; }
+.setting-row .btn {
+  padding: 7px 14px;
+  font-size: 12px;
+}
+.setting-row .toggle { padding: 7px 12px; justify-content: flex-start; }
+
+.rate-control { display: flex; align-items: center; gap: 10px; }
+.rate-control input[type="range"] {
+  flex: 1;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  background: color-mix(in srgb, var(--fg) 18%, transparent);
+  border-radius: 999px;
+  outline: none;
+  cursor: pointer;
+}
+.rate-control input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px; height: 16px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--bg-2);
+  box-shadow: 0 0 0 1px var(--accent), 0 0 12px color-mix(in srgb, var(--accent) 35%, transparent);
+  cursor: pointer;
+}
+.rate-control input[type="range"]::-moz-range-thumb {
+  width: 16px; height: 16px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--bg-2);
+  cursor: pointer;
+}
+.rate-label {
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  min-width: 14px;
+  text-align: right;
+}
+
+#settingsBtn.has-changes {
+  border-color: color-mix(in srgb, var(--accent) 50%, var(--border));
 }
 .select optgroup { color: var(--fg-dim); font-style: normal; font-weight: 600; }
 
