@@ -255,10 +255,72 @@ body {
   display: flex;
   gap: clamp(28px, 3.5vw, 56px);
 }
-.slide.entering { animation: slideIn .55s cubic-bezier(.22,.61,.36,1); }
+.slide > * { position: relative; z-index: 1; }
+
+/* ---------- ambient blob background (per slide) ---------- */
+.slide-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.slide-bg::before, .slide-bg::after {
+  content: "";
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(90px);
+  opacity: 0.22;
+  will-change: transform;
+}
+.slide-bg::before {
+  width: 60%; height: 60%;
+  top: -15%; right: -15%;
+  background: var(--accent);
+  animation: blob1 16s ease-in-out infinite;
+}
+.slide-bg::after {
+  width: 55%; height: 55%;
+  bottom: -20%; left: -15%;
+  background: var(--accent-2);
+  animation: blob2 22s ease-in-out infinite;
+}
+@keyframes blob1 {
+  0%, 100% { transform: translate(0,0) scale(1); }
+  33% { transform: translate(-8%, 6%) scale(1.08); }
+  66% { transform: translate(5%, -4%) scale(0.94); }
+}
+@keyframes blob2 {
+  0%, 100% { transform: translate(0,0) scale(1); }
+  40% { transform: translate(10%, -8%) scale(0.92); }
+  70% { transform: translate(-4%, 6%) scale(1.1); }
+}
+
+/* Sparkle layer for cover layouts — tiny dots that twinkle subtly. */
+.slide.layout-cover .slide-bg::before { opacity: 0.32; }
+.slide-sparkle {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image:
+    radial-gradient(1.5px 1.5px at 18% 22%, var(--accent), transparent 60%),
+    radial-gradient(2px 2px at 72% 38%, var(--accent-2), transparent 60%),
+    radial-gradient(1px 1px at 38% 78%, var(--accent), transparent 60%),
+    radial-gradient(1.5px 1.5px at 88% 84%, var(--accent-2), transparent 60%),
+    radial-gradient(1px 1px at 8% 62%, var(--accent), transparent 60%);
+  opacity: 0;
+  animation: sparkle 6s ease-in-out infinite;
+}
+@keyframes sparkle {
+  0%, 100% { opacity: 0; }
+  20%, 80% { opacity: 0.6; }
+  50% { opacity: 0.9; }
+}
+.slide.entering { animation: slideIn .6s cubic-bezier(.34, 1.4, .64, 1); }
 @keyframes slideIn {
-  from { opacity: 0; transform: translateY(24px); }
-  to { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; transform: translateY(24px) scale(0.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 .slide.empty { align-items: center; justify-content: center; text-align: center; flex-direction: column; gap: 20px; }
@@ -276,6 +338,14 @@ body {
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
+}
+.slide h2 .word {
+  display: inline-block;
+  animation: wordIn .55s cubic-bezier(.34, 1.4, .64, 1) backwards;
+}
+@keyframes wordIn {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 .slide ul {
   list-style: none;
@@ -325,11 +395,17 @@ body {
   color: var(--accent);
   stroke-width: 1.4;
   filter: drop-shadow(0 12px 32px color-mix(in srgb, var(--accent) 22%, transparent));
-  animation: iconIn .55s cubic-bezier(.22,.61,.36,1);
+  animation:
+    iconIn .55s cubic-bezier(.34, 1.56, .64, 1),
+    iconBob 5s ease-in-out 0.7s infinite;
 }
 @keyframes iconIn {
-  from { opacity: 0; transform: scale(0.8) rotate(-4deg); }
+  from { opacity: 0; transform: scale(0.7) rotate(-6deg); }
   to { opacity: 1; transform: scale(1) rotate(0); }
+}
+@keyframes iconBob {
+  0%, 100% { transform: translateY(0) rotate(0); }
+  50% { transform: translateY(-6px) rotate(1deg); }
 }
 
 /* ---------- LAYOUT: bullets ---------- */

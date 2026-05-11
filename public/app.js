@@ -195,6 +195,24 @@ function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
+// Wrap each word of a title in a span with staggered animation delay so the
+// title reveals word-by-word on slide entry. Spaces preserved as plain text.
+function wrapWords(text) {
+  const parts = String(text).split(/(\s+)/);
+  let wordIdx = 0;
+  return parts
+    .map((p) => {
+      if (!p.trim()) return p;
+      const delay = wordIdx * 55;
+      wordIdx++;
+      return `<span class="word" style="animation-delay:${delay}ms">${escapeHtml(p)}</span>`;
+    })
+    .join("");
+}
+
+const SLIDE_BG = '<div class="slide-bg"></div>';
+const SLIDE_SPARKLE = '<div class="slide-sparkle"></div>';
+
 function renderSlide(idx) {
   if (idx < 0 || idx >= slides.length) {
     slideFrame.innerHTML = `
@@ -224,7 +242,8 @@ function splitTitleForSplitLayout(t) {
 
 function renderLayoutHTML(s, idx) {
   const layout = s.layout || "bullets";
-  const t = escapeHtml(s.titulo || "");
+  const tRaw = escapeHtml(s.titulo || "");
+  const t = wrapWords(s.titulo || "");
   const b = (s.bullets || []).map(escapeHtml);
   const icon = s.icon ? escapeHtml(s.icon) : "";
   const meta = `<div class="slide-meta">${idx + 1} / ${slides.length}</div>`;
@@ -233,6 +252,7 @@ function renderLayoutHTML(s, idx) {
     const subtitle = b[0] ? `<div class="cover-subtitle">${b[0]}</div>` : "";
     const iconSlot = icon ? `<div class="cover-icon" data-icon="${icon}"></div>` : "";
     return `<div class="slide entering layout-cover">
+      ${SLIDE_BG}${SLIDE_SPARKLE}
       ${iconSlot}
       <h2>${t}</h2>
       ${subtitle}
@@ -247,10 +267,10 @@ function renderLayoutHTML(s, idx) {
       ? `<ul class="stat-context">${rest.map((x, i) => `<li style="animation-delay:${i * 80}ms">${x}</li>`).join("")}</ul>`
       : "";
     const iconSlot = icon ? `<div class="stat-icon" data-icon="${icon}"></div>` : "";
-    // Auto-shrink for long stat strings. Up to ~6 chars get the full XL size.
     const lenClass =
       num.length <= 4 ? "len-xs" : num.length <= 7 ? "len-sm" : num.length <= 12 ? "len-md" : "len-lg";
     return `<div class="slide entering layout-stat">
+      ${SLIDE_BG}
       <div class="stat-num ${lenClass}">${escapeHtml(num)}</div>
       <div class="stat-side">
         ${iconSlot}
@@ -262,12 +282,13 @@ function renderLayoutHTML(s, idx) {
   }
 
   if (layout === "quote") {
-    const quote = b[0] || t;
-    const attr = b[0] ? t : "";
+    const quoteText = s.bullets?.[0] ? wrapWords(s.bullets[0]) : t;
+    const attrText = s.bullets?.[0] ? tRaw : "";
     return `<div class="slide entering layout-quote">
+      ${SLIDE_BG}
       <div class="quote-mark" data-icon="quote"></div>
-      <p class="quote-text">${quote}</p>
-      ${attr ? `<div class="quote-attr">— ${attr}</div>` : ""}
+      <p class="quote-text">${quoteText}</p>
+      ${attrText ? `<div class="quote-attr">— ${attrText}</div>` : ""}
       ${meta}
     </div>`;
   }
@@ -278,6 +299,7 @@ function renderLayoutHTML(s, idx) {
     const right = b[1] || "";
     const iconSlot = icon ? `<div class="split-icon" data-icon="${icon}"></div>` : "";
     return `<div class="slide entering layout-split">
+      ${SLIDE_BG}
       <div class="split-side">
         ${leftLabel ? `<div class="split-label">${escapeHtml(leftLabel)}</div>` : ""}
         <div class="split-text">${left}</div>
@@ -291,10 +313,10 @@ function renderLayoutHTML(s, idx) {
     </div>`;
   }
 
-  // Default: bullets — title + bullets on left, big icon on right.
   const bullets = b.map((x, i) => `<li style="animation-delay:${i * 80}ms">${x}</li>`).join("");
   const iconSlot = icon ? `<div class="bullets-icon" data-icon="${icon}"></div>` : "";
   return `<div class="slide entering layout-bullets">
+    ${SLIDE_BG}
     <div class="bullets-content">
       <h2>${t}</h2>
       ${bullets ? `<ul>${bullets}</ul>` : ""}
