@@ -8,12 +8,94 @@ const transcriptText = document.getElementById("transcriptText");
 const modelSelect = document.getElementById("modelSelect");
 const themeSelect = document.getElementById("themeSelect");
 
-const THEMES = ["default", "mono", "cyber", "sunset", "paper"];
-function applyTheme(name) {
-  const t = THEMES.includes(name) ? name : "default";
-  document.body.classList.remove(...THEMES.map((x) => `theme-${x}`));
-  document.body.classList.add(`theme-${t}`);
-  return t;
+const PRESET_THEMES = ["default", "mono", "cyber", "sunset", "paper"];
+const ALL_PRESET_CLASSES = PRESET_THEMES.map((x) => `theme-${x}`);
+
+// ---------- Color helpers (no library) ----------
+function hexToRgb(hex) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex || "");
+  if (!m) return [0, 0, 0];
+  const n = parseInt(m[1], 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+function rgbToHex([r, g, b]) {
+  return "#" + [r, g, b].map((v) => Math.max(0, Math.min(255, v | 0)).toString(16).padStart(2, "0")).join("");
+}
+function mix(hexA, hexB, t) {
+  const [a, b] = [hexToRgb(hexA), hexToRgb(hexB)];
+  return rgbToHex(a.map((x, i) => x + (b[i] - x) * t));
+}
+function luminance(hex) {
+  const [r, g, b] = hexToRgb(hex).map((c) => c / 255);
+  const f = (c) => (c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
+  return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
+}
+function isDark(hex) {
+  return luminance(hex) < 0.35;
+}
+
+// Given the 4 user-chosen colors, derive every CSS var the theme system needs.
+function deriveThemeVars({ bg, fg, accent, accent2 }) {
+  const dark = isDark(bg);
+  const bg2 = dark ? mix(bg, "#ffffff", 0.05) : mix(bg, "#000000", 0.04);
+  const fgDim = mix(fg, bg, 0.45);
+  const border = dark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)";
+  const titleStart = fg;
+  const titleEnd = mix(fg, bg, 0.3);
+  return {
+    "--bg": bg,
+    "--bg-2": bg2,
+    "--fg": fg,
+    "--fg-dim": fgDim,
+    "--accent": accent,
+    "--accent-2": accent2,
+    "--border": border,
+    "--title-grad-start": titleStart,
+    "--title-grad-end": titleEnd,
+    "--stat-grad-start": accent,
+    "--stat-grad-end": accent2,
+    "--bullet-fg": dark ? mix(fg, "#000000", 0.05) : mix(fg, "#000000", 0.1),
+  };
+}
+
+// ---------- Theme application ----------
+function applyTheme(spec) {
+  // Clear both preset class AND inline vars.
+  document.body.classList.remove(...ALL_PRESET_CLASSES);
+  for (const v of [
+    "--bg", "--bg-2", "--fg", "--fg-dim", "--accent", "--accent-2",
+    "--border", "--title-grad-start", "--title-grad-end",
+    "--stat-grad-start", "--stat-grad-end", "--bullet-fg",
+  ]) document.body.style.removeProperty(v);
+
+  if (typeof spec === "string" && PRESET_THEMES.includes(spec)) {
+    document.body.classList.add(`theme-${spec}`);
+    return spec;
+  }
+  // Custom theme — spec is { id, name, colors: { bg, fg, accent, accent2 } }
+  if (spec && spec.colors) {
+    const vars = deriveThemeVars(spec.colors);
+    for (const [k, v] of Object.entries(vars)) document.body.style.setProperty(k, v);
+    return spec.id;
+  }
+  document.body.classList.add("theme-default");
+  return "default";
+}
+
+// ---------- Custom theme store ----------
+const CUSTOM_KEY = "dictado.customThemes";
+function loadCustomThemes() {
+  try {
+    const arr = JSON.parse(localStorage.getItem(CUSTOM_KEY) || "[]");
+    return Array.isArray(arr) ? arr : [];
+  } catch { return []; }
+}
+function saveCustomThemes(arr) {
+  localStorage.setItem(CUSTOM_KEY, JSON.stringify(arr));
+}
+function findTheme(id) {
+  if (PRESET_THEMES.includes(id)) return id;
+  return loadCustomThemes().find((t) => t.id === id) || null;
 }
 
 let ws;
@@ -568,13 +650,145 @@ async function loadVAD() {
   // Don't request mic yet — only when user clicks "empezar".
 }
 
+// ---------- Theme modal (custom-theme editor) ----------
+const themeModal = document.getElementById("themeModal");
+const themeNameInput = document.getElementById("themeName");
+const themeBgInput = document.getElementById("themeBg");
+const themeFgInput = document.getElementById("themeFg");
+const themeAccentInput = document.getElementById("themeAccent");
+const themeAccent2Input = document.getElementById("themeAccent2");
+const themePreview = document.getElementById("themePreview");
+const themeSaveBtn = document.getElementById("themeSave");
+const themeDeleteBtn = document.getElementById("themeDelete");
+const modalTitle = document.getElementById("modalTitle");
+const customGroup = document.getElementById("customGroup");
+
+let editingId = null;
+
+function updateThemePreview() {
+  const vars = deriveThemeVars({
+    bg: themeBgInput.value, fg: themeFgInput.value,
+    accent: themeAccentInput.value, accent2: themeAccent2Input.value,
+  });
+  themePreview.style.setProperty("--preview-bg", vars["--bg"]);
+  themePreview.style.setProperty("--preview-fg", vars["--fg"]);
+  themePreview.style.setProperty("--preview-accent", vars["--accent"]);
+  themePreview.style.setProperty("--preview-accent2", vars["--accent-2"]);
+}
+for (const el of [themeBgInput, themeFgInput, themeAccentInput, themeAccent2Input]) {
+  el.addEventListener("input", updateThemePreview);
+}
+
+function openThemeEditor(existing = null) {
+  if (existing) {
+    editingId = existing.id;
+    modalTitle.textContent = "editar tema";
+    themeNameInput.value = existing.name;
+    themeBgInput.value = existing.colors.bg;
+    themeFgInput.value = existing.colors.fg;
+    themeAccentInput.value = existing.colors.accent;
+    themeAccent2Input.value = existing.colors.accent2;
+    themeDeleteBtn.hidden = false;
+  } else {
+    editingId = null;
+    modalTitle.textContent = "crear tema";
+    themeNameInput.value = "";
+    themeBgInput.value = "#0a0a0c";
+    themeFgInput.value = "#f5f5f7";
+    themeAccentInput.value = "#f97316";
+    themeAccent2Input.value = "#fbbf24";
+    themeDeleteBtn.hidden = true;
+  }
+  updateThemePreview();
+  themeModal.hidden = false;
+  setTimeout(() => themeNameInput.focus(), 50);
+}
+function closeThemeEditor() { themeModal.hidden = true; }
+
+themeModal.addEventListener("click", (e) => {
+  if (e.target.dataset && e.target.dataset.close !== undefined) closeThemeEditor();
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && !themeModal.hidden) closeThemeEditor();
+});
+
+themeSaveBtn.addEventListener("click", () => {
+  const name = (themeNameInput.value || "sin nombre").trim().slice(0, 30);
+  const colors = {
+    bg: themeBgInput.value,
+    fg: themeFgInput.value,
+    accent: themeAccentInput.value,
+    accent2: themeAccent2Input.value,
+  };
+  const customs = loadCustomThemes();
+  if (editingId) {
+    const idx = customs.findIndex((t) => t.id === editingId);
+    if (idx >= 0) customs[idx] = { ...customs[idx], name, colors };
+  } else {
+    const id = `custom-${Date.now()}`;
+    customs.push({ id, name, colors });
+    editingId = id;
+  }
+  saveCustomThemes(customs);
+  rebuildCustomGroup();
+  themeSelect.value = editingId;
+  const applied = applyTheme(customs.find((t) => t.id === editingId));
+  localStorage.setItem("dictado.theme", editingId);
+  closeThemeEditor();
+});
+
+themeDeleteBtn.addEventListener("click", () => {
+  if (!editingId) return;
+  const customs = loadCustomThemes().filter((t) => t.id !== editingId);
+  saveCustomThemes(customs);
+  if (localStorage.getItem("dictado.theme") === editingId) {
+    localStorage.setItem("dictado.theme", "default");
+    applyTheme("default");
+    themeSelect.value = "default";
+  }
+  rebuildCustomGroup();
+  closeThemeEditor();
+});
+
+function rebuildCustomGroup() {
+  customGroup.innerHTML = "";
+  for (const t of loadCustomThemes()) {
+    const opt = document.createElement("option");
+    opt.value = t.id;
+    opt.textContent = `tema · ${t.name}`;
+    customGroup.appendChild(opt);
+  }
+}
+
 async function init() {
+  rebuildCustomGroup();
+
   // Restore theme (synchronous, before anything renders).
-  const savedTheme = applyTheme(localStorage.getItem("dictado.theme") || "default");
-  themeSelect.value = savedTheme;
+  const savedId = localStorage.getItem("dictado.theme") || "default";
+  const spec = findTheme(savedId);
+  const appliedId = applyTheme(spec || "default");
+  themeSelect.value = spec ? savedId : "default";
+
   themeSelect.addEventListener("change", () => {
-    const t = applyTheme(themeSelect.value);
-    localStorage.setItem("dictado.theme", t);
+    const v = themeSelect.value;
+    if (v === "__edit__") {
+      // Don't change theme — open editor for new theme.
+      themeSelect.value = localStorage.getItem("dictado.theme") || "default";
+      openThemeEditor(null);
+      return;
+    }
+    const sp = findTheme(v) || "default";
+    const id = applyTheme(sp);
+    localStorage.setItem("dictado.theme", typeof sp === "string" ? sp : sp.id);
+  });
+
+  // Double-click on a custom theme to edit it.
+  themeSelect.addEventListener("dblclick", () => {
+    const v = themeSelect.value;
+    if (v.startsWith("custom-")) {
+      const t = loadCustomThemes().find((x) => x.id === v);
+      if (t) openThemeEditor(t);
+    }
   });
 
   // Restore previously selected model.

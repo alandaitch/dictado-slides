@@ -17,11 +17,15 @@
       </div>
       <div class="controls">
         <select id="themeSelect" class="select" title="tema visual">
-          <option value="default">tema · default</option>
-          <option value="mono">tema · mono</option>
-          <option value="cyber">tema · cyber</option>
-          <option value="sunset">tema · sunset</option>
-          <option value="paper">tema · paper</option>
+          <optgroup label="presets" id="presetGroup">
+            <option value="default">tema · default</option>
+            <option value="mono">tema · mono</option>
+            <option value="cyber">tema · cyber</option>
+            <option value="sunset">tema · sunset</option>
+            <option value="paper">tema · paper</option>
+          </optgroup>
+          <optgroup label="míos" id="customGroup"></optgroup>
+          <option value="__edit__">+ crear tema…</option>
         </select>
         <select id="modelSelect" class="select" title="modelo de transcripción">
           <option value="onnx-community/whisper-large-v3-turbo" selected>whisper-turbo · ~1.3GB · mejor calidad</option>
@@ -43,6 +47,52 @@
         </div>
       </section>
     </main>
+
+    <!-- Custom theme editor modal -->
+    <div id="themeModal" class="modal" hidden>
+      <div class="modal-backdrop" data-close></div>
+      <div class="modal-panel" role="dialog" aria-labelledby="modalTitle">
+        <header class="modal-head">
+          <h3 id="modalTitle">crear tema</h3>
+          <button class="btn btn-ghost" data-close aria-label="cerrar">×</button>
+        </header>
+        <div class="modal-body">
+          <label class="theme-field">
+            <span>nombre</span>
+            <input id="themeName" type="text" maxlength="30" placeholder="mi tema" />
+          </label>
+          <div class="theme-colors">
+            <label class="color-field">
+              <span>fondo</span>
+              <input id="themeBg" type="color" value="#0a0a0c" />
+            </label>
+            <label class="color-field">
+              <span>texto</span>
+              <input id="themeFg" type="color" value="#f5f5f7" />
+            </label>
+            <label class="color-field">
+              <span>acento</span>
+              <input id="themeAccent" type="color" value="#f97316" />
+            </label>
+            <label class="color-field">
+              <span>acento 2</span>
+              <input id="themeAccent2" type="color" value="#fbbf24" />
+            </label>
+          </div>
+          <div id="themePreview" class="theme-preview">
+            <div class="preview-title">vista previa</div>
+            <div class="preview-bullet"><span class="preview-dot"></span>así se ve un bullet</div>
+            <div class="preview-stat">$20M</div>
+          </div>
+        </div>
+        <footer class="modal-foot">
+          <button id="themeDelete" class="btn btn-ghost" hidden>eliminar</button>
+          <div style="flex:1"></div>
+          <button class="btn btn-ghost" data-close>cancelar</button>
+          <button id="themeSave" class="btn btn-primary">guardar</button>
+        </footer>
+      </div>
+    </div>
 
     <footer class="footer">
       <div class="strip" id="strip"></div>
