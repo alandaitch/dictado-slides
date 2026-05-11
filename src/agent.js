@@ -30,10 +30,17 @@ REGLA DE ORO — ANTI-ALUCINACIÓN:
 Los bullets deben reflejar SOLAMENTE lo que está EXPLÍCITAMENTE en la transcripción. Está PROHIBIDO inventar contenido, completar ideas que el orador no dijo, o "rellenar" temas relacionados que no aparecieron literalmente.
 Si la transcripción es un fragmento incompleto o ambiguo, llamá a "esperar". Mejor demorar una slide que mostrar una mentira en pantalla.
 
+RITMO — IMPORTANTE:
+La presentación debe SENTIRSE viva. Una slide con muchos bullets aburre. Preferí MUCHAS slides livianas con 1-3 bullets cada una antes que una sola slide saturada.
+- Si el orador cambia de subtema, ángulo, ejemplo o registro → CREÁ NUEVA SLIDE, no extiendas.
+- Si la slide actual ya tiene 3 bullets → tu próxima acción default es nueva_slide salvo que sea OBVIAMENTE el mismo punto.
+- Una nueva idea, un nuevo ejemplo, una nueva métrica, un "por otro lado..." → SIEMPRE nueva_slide.
+- En la duda, nueva_slide.
+
 REGLAS:
-1. Cada slide tiene un TÍTULO corto (3-7 palabras, idea fuerte) y 1-5 BULLETS (frases cortas, sin redundar el título).
-2. Crear UNA NUEVA SLIDE cuando hay un cambio claro de tema o cuando la slide actual ya tiene 5 bullets.
-3. AGREGAR un bullet a la slide actual cuando la persona desarrolla más el mismo tema. Si el bullet ya existe parafraseado, NO lo agregues de nuevo.
+1. Cada slide tiene un TÍTULO corto (3-7 palabras, idea fuerte) y 1-3 BULLETS típicos (máximo absoluto 5).
+2. NUEVA SLIDE siempre que haya quiebre de tema o ángulo.
+3. AGREGAR_BULLET solo cuando es continuación literal del mismo punto. Si el bullet ya existe parafraseado, NO lo agregues de nuevo.
 4. NO crees slide para muletillas, dudas, "eh", "bueno", correcciones, o frases vacías. Tampoco para fragmentos cortados a la mitad. Para esos casos llamá a "esperar".
 5. Bullets en MINÚSCULA y SIN punto final, salvo nombres propios. Concretos, no genéricos.
 6. Títulos: idea, no descripción. "El problema de la velocidad" no "Hablamos del problema".
@@ -95,7 +102,14 @@ const tools = {
         .max(120)
         .optional()
         .describe(
-          "Opcional: keyword en INGLÉS para buscar UNA imagen/meme/screencap real que aporte humor o impacto visual. NUNCA inventes contenido — usá solo si la idea realmente se beneficia de la imagen. Routing automático del frontend: keywords con 'simpsons|homer|bart|lisa|marge|moe' → Frinkiac (screencap Simpsons). 'futurama|fry|bender|leela|zoidberg' → Morbotron (screencap Futurama). Cualquier otra cosa → busca en Reddit r/memes / r/wholesomememes. Ejemplos buenos: 'simpsons old man yells at cloud', 'futurama shut up take my money', 'this is fine dog fire', 'galaxy brain expanding'. Si ponés imagen, idealmente usá layout 'photo'.",
+          "Opcional: keyword en INGLÉS para buscar UNA imagen/meme/screencap real. NUNCA inventes contenido — usá solo si la idea realmente se beneficia de la imagen. Routing automático: 'simpsons|homer|bart|lisa|marge|moe' → Frinkiac. 'futurama|fry|bender|leela|zoidberg' → Morbotron. Otra cosa → Reddit (ver campo subreddit). Ejemplos: 'simpsons old man yells cloud', 'futurama shut up take my money', 'this is fine dog fire', 'galaxy brain expanding'. Si ponés imagen, idealmente usá layout 'photo'.",
+        ),
+      subreddit: z
+        .string()
+        .max(30)
+        .optional()
+        .describe(
+          "Opcional: nombre del subreddit (sin 'r/') desde donde buscar la imagen. Solo aplica si NO es Simpsons/Futurama. Elegí el que mejor encaje con el tono del chiste. Opciones: memes (default — memes generales virales), wholesomememes (memes positivos, ternura), reactiongifs (reacciones, expresiones), dankmemes (memes absurdos, irónicos), AdviceAnimals (memes clásicos con texto), ProgrammerHumor (programación/tech), PoliticalHumor (política internacional), aww (animales, ternura genuina), argentina (contenido argentino, política/cultura local), RepublicaArgentina (memes políticos argentinos), oldschoolcool (fotos vintage), interestingasfuck (hechos visuales impactantes), gifs (reacciones genéricas). Si no estás seguro, omití el campo y se usa la cadena default.",
         ),
       layout: z
         .enum(LAYOUTS)
@@ -112,6 +126,7 @@ const tools = {
       bullets: z.array(z.string().min(1).max(160)).min(1).max(3),
       icon: z.string().max(40).optional(),
       imagen: z.string().max(120).optional(),
+      subreddit: z.string().max(30).optional(),
       layout: z.enum(LAYOUTS).optional(),
     }),
     execute: async (args) => ({ ok: true, ...args }),
@@ -134,13 +149,16 @@ function describeCurrentSlide(slide) {
   return `Slide actual #${slide.index + 1}\nTítulo: ${slide.titulo}\nBullets:\n${bullets}\n(${slide.bullets.length}/5 bullets)`;
 }
 
-export async function runTurn({ transcript, currentSlide, history = [] }) {
+export async function runTurn({ transcript, currentSlide, history = [], imagesEnabled = true }) {
   const model = await getModel();
+  const flags = imagesEnabled
+    ? "IMÁGENES habilitadas — podés usar el campo `imagen` cuando sirva."
+    : "IMÁGENES deshabilitadas — NO uses el campo `imagen` bajo ningún concepto. Usá solo icon.";
   const messages = [
     ...history,
     {
       role: "user",
-      content: `${describeCurrentSlide(currentSlide)}\n\n--- TRANSCRIPCIÓN NUEVA ---\n${transcript}\n\nDecidí qué hacer.`,
+      content: `${flags}\n\n${describeCurrentSlide(currentSlide)}\n\n--- TRANSCRIPCIÓN NUEVA ---\n${transcript}\n\nDecidí qué hacer.`,
     },
   ];
 

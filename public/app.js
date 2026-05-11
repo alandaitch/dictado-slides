@@ -7,6 +7,11 @@ const stripEl = document.getElementById("strip");
 const transcriptText = document.getElementById("transcriptText");
 const modelSelect = document.getElementById("modelSelect");
 const themeSelect = document.getElementById("themeSelect");
+const imagesToggle = document.getElementById("imagesToggle");
+
+function getImagesEnabled() {
+  return imagesToggle.checked;
+}
 
 const PRESET_THEMES = ["default", "mono", "cyber", "sunset", "paper"];
 const ALL_PRESET_CLASSES = PRESET_THEMES.map((x) => `theme-${x}`);
@@ -221,29 +226,34 @@ const SLIDE_SPARKLE = '<div class="slide-sparkle"></div>';
 const imageCache = new Map();
 const imagePending = new Map();
 
-async function resolveImage(keyword) {
+async function resolveImage(keyword, subreddit = "") {
   if (!keyword) return null;
-  if (imageCache.has(keyword)) return imageCache.get(keyword);
-  if (imagePending.has(keyword)) return imagePending.get(keyword);
-  const p = fetch(`/api/image-search?q=${encodeURIComponent(keyword)}`)
+  const cacheKey = subreddit ? `${subreddit}::${keyword}` : keyword;
+  if (imageCache.has(cacheKey)) return imageCache.get(cacheKey);
+  if (imagePending.has(cacheKey)) return imagePending.get(cacheKey);
+  const url = subreddit
+    ? `/api/image-search?q=${encodeURIComponent(keyword)}&sub=${encodeURIComponent(subreddit)}`
+    : `/api/image-search?q=${encodeURIComponent(keyword)}`;
+  const p = fetch(url)
     .then((r) => r.json())
     .then((data) => data?.url || null)
-    .then((url) => {
-      imageCache.set(keyword, url || null);
-      imagePending.delete(keyword);
-      return url || null;
+    .then((u) => {
+      imageCache.set(cacheKey, u || null);
+      imagePending.delete(cacheKey);
+      return u || null;
     })
     .catch(() => {
-      imageCache.set(keyword, null);
-      imagePending.delete(keyword);
+      imageCache.set(cacheKey, null);
+      imagePending.delete(cacheKey);
       return null;
     });
-  imagePending.set(keyword, p);
+  imagePending.set(cacheKey, p);
   return p;
 }
 
-function cachedImage(keyword) {
-  return imageCache.has(keyword) ? imageCache.get(keyword) : undefined;
+function cachedImage(keyword, subreddit = "") {
+  const k = subreddit ? `${subreddit}::${keyword}` : keyword;
+  return imageCache.has(k) ? imageCache.get(k) : undefined;
 }
 
 function renderSlide(idx) {
@@ -265,9 +275,10 @@ function renderSlide(idx) {
   renderStrip();
 
   // Resolve image on first render of this slide; on completion swap the
-  // placeholder for a real <img> (or mark not-found).
-  if (s.imagen && cachedImage(s.imagen) === undefined) {
-    resolveImage(s.imagen).then((url) => {
+  // placeholder for a real <img> (or mark not-found). Skip when images
+  // are disabled in the toggle.
+  if (s.imagen && getImagesEnabled() && cachedImage(s.imagen, s.subreddit) === undefined) {
+    resolveImage(s.imagen, s.subreddit || "").then((url) => {
       if (activeSlideIdx !== idx) return;
       const wrap = slideFrame.querySelector(".slide-image");
       if (!wrap) return;
@@ -290,9 +301,9 @@ function splitTitleForSplitLayout(t) {
   return [t, ""];
 }
 
-function imageHTML(keyword) {
+function imageHTML(keyword, subreddit = "") {
   if (!keyword) return "";
-  const cached = cachedImage(keyword);
+  const cached = cachedImage(keyword, subreddit);
   if (cached) {
     return `<div class="slide-image">
       <img alt="${escapeHtml(keyword)}" src="${escapeHtml(cached)}" referrerpolicy="no-referrer" />
@@ -306,7 +317,11 @@ function imageHTML(keyword) {
 }
 
 function renderLayoutHTML(s, idx) {
-  const layout = s.layout || "bullets";
+  const imagesOn = getImagesEnabled();
+  // When the user turns off images, treat the slide as if it never had one.
+  // photo layout falls back to bullets layout for graceful rendering.
+  const effectiveImagen = imagesOn ? s.imagen : "";
+  const layout = (!imagesOn && s.layout === "photo") ? "bullets" : (s.layout || "bullets");
   const tRaw = escapeHtml(s.titulo || "");
   const t = wrapWords(s.titulo || "");
   const b = (s.bullets || []).map(escapeHtml);
@@ -319,7 +334,7 @@ function renderLayoutHTML(s, idx) {
       : "";
     return `<div class="slide entering layout-photo">
       ${SLIDE_BG}
-      ${imageHTML(s.imagen)}
+      ${imageHTML(effectiveImagen, s.subreddit || "")}
       <div class="photo-content">
         <h2>${t}</h2>
         ${bullets}
@@ -460,7 +475,7 @@ function connectWS() {
 
 function sendTranscript(text) {
   if (!ws || ws.readyState !== WebSocket.OPEN) return;
-  ws.send(JSON.stringify({ type: "transcript", text }));
+  ws.send(JSON.stringify({ type: "transcript", text, imagesEnabled: getImagesEnabled() }));
 }
 
 let transformersMod;
@@ -899,6 +914,13 @@ async function init() {
     modelSelect.value = savedModel;
   }
   modelSelect.addEventListener("change", () => switchModel(modelSelect.value));
+
+  // Restore images toggle (default off — opt-in).
+  imagesToggle.checked = localStorage.getItem("dictado.images") === "1";
+  imagesToggle.addEventListener("change", () => {
+    localStorage.setItem("dictado.images", imagesToggle.checked ? "1" : "0");
+    if (activeSlideIdx >= 0) renderSlide(activeSlideIdx);
+  });
 
   try {
     await fetch("/api/reset", { method: "POST" }).catch(() => {});

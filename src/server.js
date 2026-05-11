@@ -38,8 +38,11 @@ async function frinkiacFamilyResolve(keyword, host) {
   return `https://${host}/img/${hit.Episode}/${hit.Timestamp}.jpg`;
 }
 
-async function redditMemeResolve(keyword) {
-  const subs = ["memes", "wholesomememes", "reactiongifs", "AdviceAnimals"];
+async function redditMemeResolve(keyword, subreddit) {
+  // If the agent named a specific subreddit, try it first, then fall back to
+  // the generic chain. Sanitization guarantees this string is safe.
+  const defaultSubs = ["memes", "wholesomememes", "reactiongifs", "AdviceAnimals"];
+  const subs = subreddit ? [subreddit, ...defaultSubs.filter((s) => s !== subreddit)] : defaultSubs;
   for (const sub of subs) {
     try {
       const url = `https://www.reddit.com/r/${sub}/search.json?q=${encodeURIComponent(keyword)}&restrict_sr=1&sort=top&t=year&limit=20`;
@@ -68,7 +71,7 @@ async function redditMemeResolve(keyword) {
   return null;
 }
 
-export async function resolveMemeImageUrl(keyword) {
+export async function resolveMemeImageUrl(keyword, subreddit) {
   const k = keyword.toLowerCase();
   if (/\b(simpson|homer|bart|lisa|marge|moe|burns|flanders|skinner|krusty|nelson|milhouse|apu)\b/.test(k)) {
     const stripped = keyword.replace(/\bsimpsons?\b/gi, "").trim() || keyword;
@@ -78,7 +81,7 @@ export async function resolveMemeImageUrl(keyword) {
     const stripped = keyword.replace(/\bfuturama\b/gi, "").trim() || keyword;
     return frinkiacFamilyResolve(stripped, "morbotron.com");
   }
-  return redditMemeResolve(keyword);
+  return redditMemeResolve(keyword, subreddit);
 }
 
 function broadcast(wss, msg) {
@@ -92,6 +95,11 @@ const VALID_LAYOUTS = new Set(["bullets", "cover", "stat", "quote", "split", "ph
 function sanitizeLayout(value) {
   return VALID_LAYOUTS.has(value) ? value : "bullets";
 }
+function sanitizeSubreddit(value) {
+  if (typeof value !== "string") return "";
+  const s = value.trim().replace(/^r\//i, "").replace(/[^A-Za-z0-9_]/g, "").slice(0, 30);
+  return s;
+}
 
 function applyToolCall(call) {
   if (call.name === "nueva_slide") {
@@ -101,6 +109,7 @@ function applyToolCall(call) {
       bullets: Array.isArray(call.args.bullets) ? call.args.bullets : [],
       icon: typeof call.args.icon === "string" ? call.args.icon.trim() : "",
       imagen: typeof call.args.imagen === "string" ? call.args.imagen.trim().slice(0, 120) : "",
+      subreddit: sanitizeSubreddit(call.args.subreddit),
       layout: sanitizeLayout(call.args.layout),
       createdAt: Date.now(),
     };
@@ -119,6 +128,8 @@ function applyToolCall(call) {
     if (typeof call.args.imagen === "string" && call.args.imagen.trim()) {
       slide.imagen = call.args.imagen.trim().slice(0, 120);
     }
+    const subFromCall = sanitizeSubreddit(call.args.subreddit);
+    if (subFromCall) slide.subreddit = subFromCall;
     if (typeof call.args.layout === "string" && VALID_LAYOUTS.has(call.args.layout)) {
       slide.layout = call.args.layout;
     }
@@ -127,21 +138,23 @@ function applyToolCall(call) {
   return { type: "wait", reason: call.args?.razon || "esperando" };
 }
 
-async function processTranscript(wss, transcript) {
+async function processTranscript(wss, transcript, opts = {}) {
   if (!transcript.trim()) return;
   if (state.isProcessing) {
     state.pendingTranscript = `${state.pendingTranscript} ${transcript}`.trim();
+    state.pendingOpts = opts;
     return;
   }
   state.isProcessing = true;
   broadcast(wss, { type: "agent:thinking", on: true });
-  console.log(`[transcript] ${transcript}`);
+  console.log(`[transcript] ${transcript} (images=${opts.imagesEnabled ? "on" : "off"})`);
   try {
     const t0 = Date.now();
     const { calls } = await runTurn({
       transcript,
       currentSlide: currentSlide(),
       history: state.history,
+      imagesEnabled: opts.imagesEnabled !== false,
     });
     console.log(`[agent] ${Date.now() - t0}ms — ${calls.map((c) => c.name).join(",") || "no-calls"}`);
     for (const call of calls) {
@@ -164,8 +177,10 @@ async function processTranscript(wss, transcript) {
     state.isProcessing = false;
     if (state.pendingTranscript) {
       const next = state.pendingTranscript;
+      const nextOpts = state.pendingOpts || {};
       state.pendingTranscript = "";
-      processTranscript(wss, next);
+      state.pendingOpts = null;
+      processTranscript(wss, next, nextOpts);
     }
   }
 }
@@ -191,14 +206,15 @@ function buildApp(wss) {
   const imageResolveCache = new Map();
   app.get("/api/image-search", async (req, res) => {
     const q = String(req.query.q || "").trim().slice(0, 200);
+    const subreddit = sanitizeSubreddit(req.query.sub || "");
     if (!q) return res.status(400).json({ ok: false, error: "missing q" });
-    if (imageResolveCache.has(q)) {
-      return res.json({ ok: true, url: imageResolveCache.get(q), cached: true });
+    const cacheKey = subreddit ? `${subreddit}::${q}` : q;
+    if (imageResolveCache.has(cacheKey)) {
+      return res.json({ ok: true, url: imageResolveCache.get(cacheKey), cached: true });
     }
     try {
-      const url = await resolveMemeImageUrl(q);
-      imageResolveCache.set(q, url);
-      // Bound cache to last ~200 keywords.
+      const url = await resolveMemeImageUrl(q, subreddit);
+      imageResolveCache.set(cacheKey, url);
       if (imageResolveCache.size > 200) {
         const oldest = imageResolveCache.keys().next().value;
         imageResolveCache.delete(oldest);
@@ -222,8 +238,9 @@ function buildApp(wss) {
   app.post("/api/transcript", async (req, res) => {
     const text = String(req.body?.text || "").trim();
     if (!text) return res.status(400).json({ ok: false, error: "empty" });
+    const imagesEnabled = req.body?.imagesEnabled !== false;
     res.json({ ok: true });
-    processTranscript(wss, text);
+    processTranscript(wss, text, { imagesEnabled });
   });
 
   app.post("/api/reset", (_req, res) => {
@@ -254,7 +271,7 @@ export function startServer({ port = PORT } = {}) {
         return;
       }
       if (msg?.type === "transcript" && typeof msg.text === "string") {
-        processTranscript(wss, msg.text.trim());
+        processTranscript(wss, msg.text.trim(), { imagesEnabled: msg.imagesEnabled !== false });
       } else if (msg?.type === "reset") {
         resetState(wss);
       }
