@@ -652,6 +652,17 @@ body.fs .fs-hint {
   background-size: 200% 100%;
   animation: imgShimmer 1.6s ease-in-out infinite;
 }
+.slide.layout-photo .slide-image.img-icon-fallback {
+  background:
+    radial-gradient(ellipse at center, color-mix(in srgb, var(--accent) 10%, transparent) 0%, transparent 60%),
+    var(--bg-2);
+}
+.slide.layout-photo .slide-image.img-icon-fallback::after { display: none; }
+.slide.layout-photo .fallback-icon-slot {
+  width: 50%;
+  height: 50%;
+  display: flex; align-items: center; justify-content: center;
+}
 @keyframes imgShimmer {
   0% { background-position: 200% 0; }
   100% { background-position: -200% 0; }

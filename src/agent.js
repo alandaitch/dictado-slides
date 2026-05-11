@@ -30,15 +30,18 @@ REGLA DE ORO — ANTI-ALUCINACIÓN:
 Los bullets deben reflejar SOLAMENTE lo que está EXPLÍCITAMENTE en la transcripción. Está PROHIBIDO inventar contenido, completar ideas que el orador no dijo, o "rellenar" temas relacionados que no aparecieron literalmente.
 Si la transcripción es un fragmento incompleto o ambiguo, llamá a "esperar". Mejor demorar una slide que mostrar una mentira en pantalla.
 
-RITMO — IMPORTANTE:
-La presentación debe SENTIRSE viva. Una slide con muchos bullets aburre. Preferí MUCHAS slides livianas con 1-3 bullets cada una antes que una sola slide saturada.
-- Si el orador cambia de subtema, ángulo, ejemplo o registro → CREÁ NUEVA SLIDE, no extiendas.
-- Si la slide actual ya tiene 3 bullets → tu próxima acción default es nueva_slide salvo que sea OBVIAMENTE el mismo punto.
-- Una nueva idea, un nuevo ejemplo, una nueva métrica, un "por otro lado..." → SIEMPRE nueva_slide.
-- En la duda, nueva_slide.
+RITMO — CRÍTICO:
+La presentación debe ser RÁPIDA y CINEMÁTICA. Muchas slides cortas, no pocas saturadas.
+- Target: 1-2 bullets por slide (3 máximo en raros casos).
+- **CADA EJEMPLO CONCRETO = SLIDE NUEVA**. Si el orador dice "por ejemplo Homero…" → slide. Después "Lisa pide…" → OTRA slide. Después "Bart hace…" → OTRA slide. Cada personaje, cada caso, cada anécdota tiene su propia slide.
+- "por otro lado", "también", "además", "otra cosa", "después", "encima" → NUEVA slide.
+- Cualquier cambio de protagonista, ángulo, métrica o registro → NUEVA slide.
+- agregar_bullet solo cuando es LITERALMENTE el mismo punto desarrollado en la misma oración.
+- Si la slide actual ya tiene 2 bullets, tu default es nueva_slide.
+- EN LA DUDA: nueva_slide. Siempre nueva_slide.
 
 REGLAS:
-1. Cada slide tiene un TÍTULO corto (3-7 palabras, idea fuerte) y 1-3 BULLETS típicos (máximo absoluto 5).
+1. Cada slide tiene un TÍTULO corto (3-7 palabras, idea fuerte) y 1-2 BULLETS típicos (máximo absoluto 3).
 2. NUEVA SLIDE siempre que haya quiebre de tema o ángulo.
 3. AGREGAR_BULLET solo cuando es continuación literal del mismo punto. Si el bullet ya existe parafraseado, NO lo agregues de nuevo.
 4. NO crees slide para muletillas, dudas, "eh", "bueno", correcciones, o frases vacías. Tampoco para fragmentos cortados a la mitad. Para esos casos llamá a "esperar".
@@ -102,7 +105,7 @@ const tools = {
         .max(120)
         .optional()
         .describe(
-          "Opcional: keyword en INGLÉS para buscar UNA imagen/meme/screencap real. NUNCA inventes contenido — usá solo si la idea realmente se beneficia de la imagen. Routing automático: 'simpsons|homer|bart|lisa|marge|moe' → Frinkiac. 'futurama|fry|bender|leela|zoidberg' → Morbotron. Otra cosa → Reddit (ver campo subreddit). Ejemplos: 'simpsons old man yells cloud', 'futurama shut up take my money', 'this is fine dog fire', 'galaxy brain expanding'. Si ponés imagen, idealmente usá layout 'photo'.",
+          "Opcional: keyword en INGLÉS para buscar UNA imagen/meme/screencap real. NUNCA inventes contenido — usá solo si la idea se beneficia. Routing: 'simpsons|homer|bart|lisa|marge|moe' → Frinkiac (busca DIÁLOGO LITERAL — Frinkiac indexa subtítulos, así que pasale frases reales del episodio como 'i for one welcome our new ant overlords' o 'old man yells at cloud', NO descripciones tipo 'simpsons predict AI'). 'futurama|fry|bender|leela|zoidberg' → Morbotron (igual: usa frases literales). Otra cosa → Reddit (ver subreddit). Ejemplos: 'old man yells at cloud', 'shut up and take my money', 'this is fine dog fire', 'galaxy brain expanding'.",
         ),
       subreddit: z
         .string()

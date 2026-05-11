@@ -34,7 +34,9 @@ async function frinkiacFamilyResolve(keyword, host) {
   if (!r.ok) return null;
   const data = await r.json();
   if (!Array.isArray(data) || !data.length) return null;
-  const hit = pickRandomTop(data);
+  // Take the highest-scored match (first) so quoted dialogue lands on the
+  // canonical frame instead of a random nearby caption.
+  const hit = data[0];
   return `https://${host}/img/${hit.Episode}/${hit.Timestamp}.jpg`;
 }
 
@@ -73,7 +75,7 @@ async function redditMemeResolve(keyword, subreddit) {
 
 export async function resolveMemeImageUrl(keyword, subreddit) {
   const k = keyword.toLowerCase();
-  if (/\b(simpson|homer|bart|lisa|marge|moe|burns|flanders|skinner|krusty|nelson|milhouse|apu)\b/.test(k)) {
+  if (/\b(simpsons?|homer|bart|lisa|marge|moe|burns|flanders|skinner|krusty|nelson|milhouse|apu)\b/.test(k)) {
     const stripped = keyword.replace(/\bsimpsons?\b/gi, "").trim() || keyword;
     return frinkiacFamilyResolve(stripped, "frinkiac.com");
   }

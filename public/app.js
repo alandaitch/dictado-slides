@@ -340,7 +340,8 @@ function renderSlide(idx) {
   renderStrip();
 
   // Resolve image on first render of this slide; on completion swap the
-  // placeholder for a real <img> (or mark not-found). Skip when images
+  // placeholder for a real <img>, or fall back to the slide's icon if the
+  // search returned nothing / the image fails to load. Skip when images
   // are disabled in the toggle.
   if (s.imagen && getImagesEnabled() && cachedImage(s.imagen, s.subreddit) === undefined) {
     resolveImage(s.imagen, s.subreddit || "").then((url) => {
@@ -348,13 +349,32 @@ function renderSlide(idx) {
       const wrap = slideFrame.querySelector(".slide-image");
       if (!wrap) return;
       if (url) {
-        wrap.classList.remove("is-loading", "img-not-found");
-        wrap.innerHTML = `<img alt="${escapeHtml(s.imagen)}" src="${escapeHtml(url)}" referrerpolicy="no-referrer" onerror="this.parentElement.classList.add('img-not-found'); this.remove();" />`;
+        wrap.classList.remove("is-loading", "img-not-found", "img-icon-fallback");
+        // If the actual image fails to load, fall back to icon as well.
+        wrap.innerHTML = `<img alt="${escapeHtml(s.imagen)}" src="${escapeHtml(url)}" referrerpolicy="no-referrer" />`;
+        const imgEl = wrap.querySelector("img");
+        if (imgEl) {
+          imgEl.addEventListener("error", () => fallbackToIcon(wrap, s));
+        }
       } else {
-        wrap.classList.remove("is-loading");
-        wrap.classList.add("img-not-found");
+        fallbackToIcon(wrap, s);
       }
     });
+  }
+}
+
+// Replace the photo area with a big icon (or, if no icon, a placeholder).
+// Keeps the photo layout intact so text alignment doesn't reflow.
+function fallbackToIcon(wrap, s) {
+  wrap.classList.remove("is-loading");
+  if (s.icon) {
+    wrap.classList.add("img-icon-fallback");
+    wrap.classList.remove("img-not-found");
+    wrap.innerHTML = `<div class="fallback-icon-slot" data-icon="${escapeHtml(s.icon)}"></div>`;
+    const slot = wrap.querySelector(".fallback-icon-slot");
+    if (slot) renderIconInto(slot, s.icon);
+  } else {
+    wrap.classList.add("img-not-found");
   }
 }
 
