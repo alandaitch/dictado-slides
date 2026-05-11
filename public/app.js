@@ -213,6 +213,39 @@ function wrapWords(text) {
 const SLIDE_BG = '<div class="slide-bg"></div>';
 const SLIDE_SPARKLE = '<div class="slide-sparkle"></div>';
 
+// ---------- Image resolver: proxied through our server (no browser CORS) ----------
+// Frinkiac / Morbotron / Reddit don't ship CORS headers, so we ask the Node
+// server to do the actual cross-origin search and return just the image URL.
+// The <img> tag can then load the image directly — CORS doesn't apply to img
+// elements rendering.
+const imageCache = new Map();
+const imagePending = new Map();
+
+async function resolveImage(keyword) {
+  if (!keyword) return null;
+  if (imageCache.has(keyword)) return imageCache.get(keyword);
+  if (imagePending.has(keyword)) return imagePending.get(keyword);
+  const p = fetch(`/api/image-search?q=${encodeURIComponent(keyword)}`)
+    .then((r) => r.json())
+    .then((data) => data?.url || null)
+    .then((url) => {
+      imageCache.set(keyword, url || null);
+      imagePending.delete(keyword);
+      return url || null;
+    })
+    .catch(() => {
+      imageCache.set(keyword, null);
+      imagePending.delete(keyword);
+      return null;
+    });
+  imagePending.set(keyword, p);
+  return p;
+}
+
+function cachedImage(keyword) {
+  return imageCache.has(keyword) ? imageCache.get(keyword) : undefined;
+}
+
 function renderSlide(idx) {
   if (idx < 0 || idx >= slides.length) {
     slideFrame.innerHTML = `
@@ -230,6 +263,23 @@ function renderSlide(idx) {
   }
   activeSlideIdx = idx;
   renderStrip();
+
+  // Resolve image on first render of this slide; on completion swap the
+  // placeholder for a real <img> (or mark not-found).
+  if (s.imagen && cachedImage(s.imagen) === undefined) {
+    resolveImage(s.imagen).then((url) => {
+      if (activeSlideIdx !== idx) return;
+      const wrap = slideFrame.querySelector(".slide-image");
+      if (!wrap) return;
+      if (url) {
+        wrap.classList.remove("is-loading", "img-not-found");
+        wrap.innerHTML = `<img alt="${escapeHtml(s.imagen)}" src="${escapeHtml(url)}" referrerpolicy="no-referrer" onerror="this.parentElement.classList.add('img-not-found'); this.remove();" />`;
+      } else {
+        wrap.classList.remove("is-loading");
+        wrap.classList.add("img-not-found");
+      }
+    });
+  }
 }
 
 function splitTitleForSplitLayout(t) {
@@ -240,6 +290,21 @@ function splitTitleForSplitLayout(t) {
   return [t, ""];
 }
 
+function imageHTML(keyword) {
+  if (!keyword) return "";
+  const cached = cachedImage(keyword);
+  if (cached) {
+    return `<div class="slide-image">
+      <img alt="${escapeHtml(keyword)}" src="${escapeHtml(cached)}" referrerpolicy="no-referrer" />
+    </div>`;
+  }
+  if (cached === null) {
+    return `<div class="slide-image img-not-found"></div>`;
+  }
+  // Not yet resolved — placeholder. The renderSlide will swap in <img> when ready.
+  return `<div class="slide-image is-loading"></div>`;
+}
+
 function renderLayoutHTML(s, idx) {
   const layout = s.layout || "bullets";
   const tRaw = escapeHtml(s.titulo || "");
@@ -247,6 +312,21 @@ function renderLayoutHTML(s, idx) {
   const b = (s.bullets || []).map(escapeHtml);
   const icon = s.icon ? escapeHtml(s.icon) : "";
   const meta = `<div class="slide-meta">${idx + 1} / ${slides.length}</div>`;
+
+  if (layout === "photo") {
+    const bullets = b.length
+      ? `<ul>${b.map((x, i) => `<li style="animation-delay:${i * 80}ms">${x}</li>`).join("")}</ul>`
+      : "";
+    return `<div class="slide entering layout-photo">
+      ${SLIDE_BG}
+      ${imageHTML(s.imagen)}
+      <div class="photo-content">
+        <h2>${t}</h2>
+        ${bullets}
+      </div>
+      ${meta}
+    </div>`;
+  }
 
   if (layout === "cover") {
     const subtitle = b[0] ? `<div class="cover-subtitle">${b[0]}</div>` : "";

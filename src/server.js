@@ -23,6 +23,64 @@ function currentSlide() {
   return { ...state.slides[i], index: i };
 }
 
+// --- Meme/screencap image resolver (server-side; no CORS to worry about) ---
+function pickRandomTop(arr, top = 5) {
+  const slice = arr.slice(0, Math.min(top, arr.length));
+  return slice[Math.floor(Math.random() * slice.length)];
+}
+
+async function frinkiacFamilyResolve(keyword, host) {
+  const r = await fetch(`https://${host}/api/search?q=${encodeURIComponent(keyword)}`);
+  if (!r.ok) return null;
+  const data = await r.json();
+  if (!Array.isArray(data) || !data.length) return null;
+  const hit = pickRandomTop(data);
+  return `https://${host}/img/${hit.Episode}/${hit.Timestamp}.jpg`;
+}
+
+async function redditMemeResolve(keyword) {
+  const subs = ["memes", "wholesomememes", "reactiongifs", "AdviceAnimals"];
+  for (const sub of subs) {
+    try {
+      const url = `https://www.reddit.com/r/${sub}/search.json?q=${encodeURIComponent(keyword)}&restrict_sr=1&sort=top&t=year&limit=20`;
+      const r = await fetch(url, {
+        headers: {
+          // Reddit blocks unidentified bots; this UA passes their filter.
+          "User-Agent": "dictado-slides/0.1 by /u/dictado-slides",
+          Accept: "application/json",
+        },
+      });
+      if (!r.ok) continue;
+      const data = await r.json();
+      const posts = (data?.data?.children || [])
+        .map((c) => c.data)
+        .filter(
+          (p) =>
+            p &&
+            (p.post_hint === "image" || /\.(jpg|jpeg|png|gif|webp)$/i.test(p.url || "")) &&
+            !p.over_18,
+        );
+      if (posts.length) return pickRandomTop(posts).url;
+    } catch {
+      // try next sub
+    }
+  }
+  return null;
+}
+
+export async function resolveMemeImageUrl(keyword) {
+  const k = keyword.toLowerCase();
+  if (/\b(simpson|homer|bart|lisa|marge|moe|burns|flanders|skinner|krusty|nelson|milhouse|apu)\b/.test(k)) {
+    const stripped = keyword.replace(/\bsimpsons?\b/gi, "").trim() || keyword;
+    return frinkiacFamilyResolve(stripped, "frinkiac.com");
+  }
+  if (/\b(futurama|fry|bender|leela|zoidberg|farnsworth|hermes|amy wong|nibbler)\b/.test(k)) {
+    const stripped = keyword.replace(/\bfuturama\b/gi, "").trim() || keyword;
+    return frinkiacFamilyResolve(stripped, "morbotron.com");
+  }
+  return redditMemeResolve(keyword);
+}
+
 function broadcast(wss, msg) {
   const data = JSON.stringify(msg);
   for (const ws of wss.clients) {
@@ -30,7 +88,7 @@ function broadcast(wss, msg) {
   }
 }
 
-const VALID_LAYOUTS = new Set(["bullets", "cover", "stat", "quote", "split"]);
+const VALID_LAYOUTS = new Set(["bullets", "cover", "stat", "quote", "split", "photo"]);
 function sanitizeLayout(value) {
   return VALID_LAYOUTS.has(value) ? value : "bullets";
 }
@@ -42,6 +100,7 @@ function applyToolCall(call) {
       titulo: call.args.titulo,
       bullets: Array.isArray(call.args.bullets) ? call.args.bullets : [],
       icon: typeof call.args.icon === "string" ? call.args.icon.trim() : "",
+      imagen: typeof call.args.imagen === "string" ? call.args.imagen.trim().slice(0, 120) : "",
       layout: sanitizeLayout(call.args.layout),
       createdAt: Date.now(),
     };
@@ -56,6 +115,9 @@ function applyToolCall(call) {
     slide.bullets = [...slide.bullets, ...incoming].slice(0, 5);
     if (typeof call.args.icon === "string" && call.args.icon.trim()) {
       slide.icon = call.args.icon.trim();
+    }
+    if (typeof call.args.imagen === "string" && call.args.imagen.trim()) {
+      slide.imagen = call.args.imagen.trim().slice(0, 120);
     }
     if (typeof call.args.layout === "string" && VALID_LAYOUTS.has(call.args.layout)) {
       slide.layout = call.args.layout;
@@ -119,6 +181,34 @@ function buildApp(wss) {
   const app = express();
   app.use(express.json({ limit: "256kb" }));
   app.use(express.static(join(__dirname, "..", "public")));
+
+  // Resolve a meme/screencap keyword to an image URL.
+  // Frinkiac, Morbotron and Reddit don't ship CORS headers, so the browser
+  // can't call them directly — we proxy the search here (server-side, no
+  // CORS) and return only the final image URL. The <img> tag in the browser
+  // can then load it directly without CORS since image elements don't
+  // enforce same-origin.
+  const imageResolveCache = new Map();
+  app.get("/api/image-search", async (req, res) => {
+    const q = String(req.query.q || "").trim().slice(0, 200);
+    if (!q) return res.status(400).json({ ok: false, error: "missing q" });
+    if (imageResolveCache.has(q)) {
+      return res.json({ ok: true, url: imageResolveCache.get(q), cached: true });
+    }
+    try {
+      const url = await resolveMemeImageUrl(q);
+      imageResolveCache.set(q, url);
+      // Bound cache to last ~200 keywords.
+      if (imageResolveCache.size > 200) {
+        const oldest = imageResolveCache.keys().next().value;
+        imageResolveCache.delete(oldest);
+      }
+      res.json({ ok: true, url });
+    } catch (err) {
+      console.error("[image-search]", err);
+      res.json({ ok: true, url: null });
+    }
+  });
 
   app.get("/api/health", (_req, res) => {
     const auth = readAuthSync();

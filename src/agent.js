@@ -62,9 +62,20 @@ LAYOUTS — elegí el que mejor sirva al contenido:
 - **cover**: introducción de sección o capítulo. Solo el título potente y opcionalmente un subtítulo corto en bullets[0]. Bullets vacío = solo título gigante.
 - **stat**: la idea principal es UNA CIFRA. bullets[0] DEBE ser una métrica CORTA de máximo 8 caracteres. Válidos: "20M", "$20M", "+340%", "150K", "8×", "99.9%", "1/3", "$2B". NO uses "20 millones de dólares" — eso va en titulo. titulo = qué describe esa cifra ("dólares levantados", "más rápido", "del equipo"). bullets[1+] = contexto adicional opcional.
 - **quote**: cita textual de alguien. titulo = quién dice la cita. bullets[0] = la cita exacta. Solo usar cuando el orador EXPLÍCITAMENTE cita a alguien.
-- **split**: contraste de dos ideas. bullets[0] = lado izquierdo, bullets[1] = lado derecho. Ej: "antes vs ahora", "problema vs solución".`;
+- **split**: contraste de dos ideas. bullets[0] = lado izquierdo, bullets[1] = lado derecho. Ej: "antes vs ahora", "problema vs solución".
+- **photo**: cuando hay imagen real que aporta humor/impacto. La imagen ocupa medio slide, título y bullets al costado. Solo usar este layout si tenés imagen (campo imagen lleno).
 
-const LAYOUTS = ["bullets", "cover", "stat", "quote", "split"];
+CUÁNDO USAR IMAGEN (campo imagen):
+- El orador hizo un chiste o referencia pop ("como Homero cuando…", "se siente como ese meme de…", "es como cuando Bender…")
+- La idea pega más fuerte con un visual conocido que con un icono (ej. al cerrar una sección de impacto)
+- Hay una analogía con cultura pop concreta
+NO uses imagen para:
+- Slides técnicas, sobrias, expositivas — usá icon.
+- Cifras (stat) — el número es el visual.
+- Citas textuales (quote) — el texto es el foco.
+Cuando no hay encaje claro, omití el campo imagen (es opcional).`;
+
+const LAYOUTS = ["bullets", "cover", "stat", "quote", "split", "photo"];
 
 const tools = {
   nueva_slide: tool({
@@ -79,20 +90,28 @@ const tools = {
         .describe(
           "Nombre de un icono Lucide (kebab-case). Tenés ~1500 a disposición — elegí libremente en inglés. Si dudás, alguno de: rocket, brain, lightbulb, chart-bar, dollar-sign, users, target, sparkles, zap, trending-up, message-square, code, book-open, clock, flag, trophy.",
         ),
+      imagen: z
+        .string()
+        .max(120)
+        .optional()
+        .describe(
+          "Opcional: keyword en INGLÉS para buscar UNA imagen/meme/screencap real que aporte humor o impacto visual. NUNCA inventes contenido — usá solo si la idea realmente se beneficia de la imagen. Routing automático del frontend: keywords con 'simpsons|homer|bart|lisa|marge|moe' → Frinkiac (screencap Simpsons). 'futurama|fry|bender|leela|zoidberg' → Morbotron (screencap Futurama). Cualquier otra cosa → busca en Reddit r/memes / r/wholesomememes. Ejemplos buenos: 'simpsons old man yells at cloud', 'futurama shut up take my money', 'this is fine dog fire', 'galaxy brain expanding'. Si ponés imagen, idealmente usá layout 'photo'.",
+        ),
       layout: z
         .enum(LAYOUTS)
         .describe(
-          "Layout de la slide. 'bullets' (default) cuando hay 2-5 ideas. 'cover' para introducir sección/capítulo (solo título grande, opcionalmente bullets[0] como subtítulo). 'stat' cuando lo principal es una CIFRA (bullets[0]='20M', titulo='dólares levantados'). 'quote' para cita textual (titulo=autor, bullets[0]=la cita). 'split' para contraste/comparación de dos ideas (bullets[0] y bullets[1] = los dos lados).",
+          "Layout: 'bullets' (default) para 2-5 ideas. 'cover' para introducir sección/capítulo. 'stat' cuando es UNA cifra (bullets[0]='20M'). 'quote' para cita (titulo=autor, bullets[0]=cita). 'split' para contraste de dos lados (bullets[0]/[1]). 'photo' cuando hay imagen — la imagen ocupa medio slide y el título va al costado.",
         ),
     }),
     execute: async (args) => ({ ok: true, ...args }),
   }),
   agregar_bullet: tool({
     description:
-      "Agregar uno o varios bullets a la slide actual. Usar cuando la persona sigue desarrollando el mismo tema. Opcionalmente actualizar icono o layout.",
+      "Agregar uno o varios bullets a la slide actual. Usar cuando la persona sigue desarrollando el mismo tema. Opcionalmente actualizar icono, imagen o layout.",
     inputSchema: z.object({
       bullets: z.array(z.string().min(1).max(160)).min(1).max(3),
       icon: z.string().max(40).optional(),
+      imagen: z.string().max(120).optional(),
       layout: z.enum(LAYOUTS).optional(),
     }),
     execute: async (args) => ({ ok: true, ...args }),
