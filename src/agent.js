@@ -4,8 +4,9 @@ import { z } from "zod";
 
 import { DEFAULT_CODEX_BASE_URL, createCodexFetch, resolveCredentials } from "./codex-auth.js";
 
-const MODEL_REQUESTED = "gpt-5.5-fast";
-const MODEL_BASE = "gpt-5.5";
+// `fast` is a service tier, not a model id. Keep the model configurable so
+// Codex account availability can be tested without changing the source.
+const MODEL_BASE = process.env.CODEX_MODEL || "gpt-5.6-luna";
 
 let cachedModel;
 
@@ -213,7 +214,9 @@ export async function runTurn({ transcript, currentSlide, history = [], imagesEn
     providerOptions: {
       openai: {
         reasoningEffort: "low",
-        serviceTier: "priority",
+        // The AI SDK accepts auto/flex/priority/default here; `fast` is a
+        // Codex CLI setting, not a valid provider option for this SDK.
+        serviceTier: "default",
         store: false,
         instructions: SYSTEM_PROMPT,
       },

@@ -81,7 +81,7 @@ antes de usarlo:
 │           │ resuelve OAuth con ~/.codex/auth.json   │
 │           │                                         │
 │           └────────────────────────────────────────────────▶  chatgpt.com/backend-api/codex
-│                                                     │            (gpt-5.5-fast, tu plan ChatGPT)
+│                                                     │            (gpt-5.6-luna, tu plan ChatGPT)
 │           ┌────────────────────────────────────────────────◀
 │           ▼                                         │
 │   Agent: tool calls → nueva_slide / agregar_bullet  │
